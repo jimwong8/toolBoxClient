@@ -284,6 +284,13 @@ app.whenReady().then(async () => {
   ipcMain.handle('dialog:chooseDirectory', chooseDirectory)
   ipcMain.handle('dialog:openLink', (event, url) => openLink(url))
   ipcMain.handle('dialog:revealInFolder', (event, payload) => revealInFolder(payload))
+  ipcMain.handle('dialog:saveFile', async (event, options) => {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: options?.defaultPath || '',
+      filters: options?.filters || [{ name: 'All Files', extensions: ['*'] }]
+    });
+    return result.canceled ? null : result.filePath;
+  })
 
   ipcMain.handle('window:focusWebContents', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {

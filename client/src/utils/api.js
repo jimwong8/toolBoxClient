@@ -115,6 +115,10 @@ class APIManager {
     async checkProxy(params) { return this._proxy('post', 'checkProxy', params); }
     async getFingerPrintCount() { return this._proxy('get', 'getFingerPrintCount'); }
     async loadFingerPrints(filePath) { return this._proxy('post', 'loadFingerPrints', { filePath }); }
+    async exportFingerPrints(filePath) {
+        // Export needs file dialog via IPC first, then HTTP to write file
+        return this._proxy('post', 'exportFingerPrints', { filePath });
+    }
     async generateFingerPrints(counts) { return this._proxy('post', 'generateFingerPrints', { counts }); }
     async getFingerPrints() { return this._proxy('get', 'getFingerPrints'); }
     async updateFingerPrintName(id, name) { return this._proxy('post', 'updateFingerPrintName', { id, name }); }

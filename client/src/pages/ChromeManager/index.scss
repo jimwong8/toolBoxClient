@@ -149,6 +149,7 @@
 
       .btn-row {
         display: flex;
+        flex-wrap: wrap;
         justify-content: flex-end;
         gap: 0.75rem;
         margin-top: 1rem;
@@ -162,6 +163,14 @@
           min-width: 0;
           white-space: nowrap;
           &:hover { background: $clr-btn-primary-hover; }
+        }
+        .btn-import-fingerprint {
+          background: #28a745;
+          &:hover { background: #218838; }
+        }
+        .btn-export-fingerprint {
+          background: #17a2b8;
+          &:hover { background: #138496; }
         }
       }
     }

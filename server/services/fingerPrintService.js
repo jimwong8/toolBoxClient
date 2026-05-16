@@ -284,6 +284,43 @@ async function loadFingerPrints(filePath) {
     }
 }
 
+async function exportFingerPrints(filePath) {
+    try {
+        const data = await new Promise((resolve, reject) => {
+            const db = getConfig().getFingerPrintDb();
+            db.find({}, (err, docs) => {
+                if (err) reject(err);
+                else resolve(docs);
+            });
+        });
+        if (!Array.isArray(data) || data.length === 0) {
+            return { success: false, message: 'No fingerprint data to export' };
+        }
+        const exportData = data.map(fp => ({
+            id: fp.id || fp._id,
+            name: fp.name,
+            user_agent: fp.user_agent,
+            webgl: fp.webgl,
+            language_js: fp.language_js,
+            language_http: fp.language_http,
+            screen: fp.screen,
+            canvas: fp.canvas,
+            hardware: fp.hardware,
+            position: fp.position,
+            timeZone: fp.timeZone,
+            webrtc_public: fp.webrtc_public,
+            proxy: fp.proxy,
+            bindWalletId: fp.bindWalletId,
+            createdAt: fp.createdAt,
+        }));
+        fs.writeFileSync(filePath, JSON.stringify(exportData, null, 2));
+        return { success: true, message: `Exported ${exportData.length} fingerprints` };
+    } catch (e) {
+        console.error('[fingerPrintService] exportFingerPrints error:', e);
+        return { success: false, code: 2002, message: 'exportFingerPrints failed: ' + e.message };
+    }
+}
+
 async function getFingerPrintCount() {
     try {
         if (!fpData || Object.keys(fpData).length === 0) {
@@ -655,6 +692,7 @@ async function reinitializeDatabase() {
 
 module.exports = {
     loadFingerPrints,
+    exportFingerPrints,
     generateRandomFingerPrint,
     getFingerPrintCount,
     clearFingerPrints,

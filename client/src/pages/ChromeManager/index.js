@@ -173,7 +173,61 @@ const ChromeManager = () => {
     const refreshFingerPrints = async () => {
         const res = await api.getFingerPrints();
         if (res && res.success && res.data) {
-            setFingerPrints(res.data); // 这一步会全局更新
+            setFingerPrints(res.data);
+        }
+    };
+
+    const importFingerprintHandler = async () => {
+        if (!window.electronAPI) {
+            showError(t('runInElectron'));
+            return;
+        }
+        const filePath = await window.electronAPI.openFile({
+            filters: [
+                { name: 'JSON', extensions: ['json'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+        if (!filePath) return;
+        setLoading((prev) => ({ ...prev, importFingerprint: true }));
+        try {
+            const res = await api.loadFingerPrints(filePath);
+            if (res && res.success) {
+                showSuccess(t('fingerprint.importSuccess'));
+                refreshFingerPrints();
+                fetchBaseFingerprintCount();
+            } else {
+                showError(res?.message || t('fingerprint.importFailed'));
+            }
+        } catch (error) {
+            showError(error.message || t('fingerprint.importFailed'));
+        } finally {
+            setLoading((prev) => ({ ...prev, importFingerprint: false }));
+        }
+    };
+
+    const exportFingerprintHandler = async () => {
+        if (!window.electronAPI || !window.electronAPI.saveFile) {
+            showError(t('runInElectron'));
+            return;
+        }
+        const filePath = await window.electronAPI.saveFile({
+            filters: [{ name: 'JSON', extensions: ['json'] }],
+            defaultPath: `fingerprints_${Date.now()}.json`
+        });
+        if (!filePath) return;
+        setLoading((prev) => ({ ...prev, exportFingerprint: true }));
+        try {
+            const res = await api.exportFingerPrints(filePath);
+            if (res && res.success) {
+                showSuccess(t('fingerprint.exportSuccess'));
+            } else {
+                showError(res?.message || t('fingerprint.exportFailed'));
+            }
+        } catch (error) {
+            showError(error.message || t('fingerprint.exportFailed'));
+        } finally {
+            setLoading((prev) => ({ ...prev, exportFingerprint: false }));
         }
     };
 
@@ -742,6 +796,18 @@ const ChromeManager = () => {
                     <div className="btn-row">
                         <Button className="btn-generate-fingerprint" onClick={openGenerateFingerprintModal}>
                             {t('generateFingerprint')}
+                        </Button>
+                        <Button className="btn-import-fingerprint" onClick={importFingerprintHandler} disabled={loading.importFingerprint}>
+                            {loading.importFingerprint
+                                ? <><Spinner animation="border" size="sm" className="me-1" />{t('fingerprint.importing')}</>
+                                : t('fingerprint.importBtn')
+                            }
+                        </Button>
+                        <Button className="btn-export-fingerprint" onClick={exportFingerprintHandler} disabled={loading.exportFingerprint}>
+                            {loading.exportFingerprint
+                                ? <><Spinner animation="border" size="sm" className="me-1" />{t('fingerprint.exporting')}</>
+                                : t('fingerprint.exportBtn')
+                            }
                         </Button>
                     </div>
                 </Card.Body>

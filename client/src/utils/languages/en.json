@@ -509,5 +509,13 @@
     "chooseWalletModal.walletName": "Wallet Name",
     "chooseWalletModal.walletAddress": "Wallet Address",
     "chooseWalletModal.normalExec": "Normal Execution",
-    "chooseWalletModal.proxyExec": "Proxy Execution"
+    "chooseWalletModal.proxyExec": "Proxy Execution",
+    "fingerprint.importBtn": "Import Fingerprints",
+    "fingerprint.exportBtn": "Export Fingerprints",
+    "fingerprint.importing": "Importing...",
+    "fingerprint.exporting": "Exporting...",
+    "fingerprint.importSuccess": "Fingerprints imported successfully",
+    "fingerprint.importFailed": "Failed to import fingerprints",
+    "fingerprint.exportSuccess": "Fingerprints exported successfully",
+    "fingerprint.exportFailed": "Failed to export fingerprints"
 }

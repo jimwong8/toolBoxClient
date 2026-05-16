@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chooseDirectory: () => safeInvoke('dialog:chooseDirectory'),
   openLink: (url) => safeInvoke('dialog:openLink', url),
   revealInFolder: (payload) => safeInvoke('dialog:revealInFolder', payload),
+  saveFile: (options) => safeInvoke('dialog:saveFile', options),
   focusWebContents: () => safeInvoke('window:focusWebContents'),
   alertSync: (message) => safeSendSync('dialog:alertSync', message),
   confirmSync: (message) => safeSendSync('dialog:confirmSync', message),

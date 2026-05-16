@@ -338,12 +338,29 @@ router.get('/getFingerPrintCount',async(req,res)=>{
   res.send(count);
 })
 //导入指纹信息
-router.post('/loadFingerPrints',async(req,res)=>{
-  const filePath = req.body.filePath;
-  const message = await fingerPrintService.loadFingerPrints(filePath);
-  res.send(message);
- 
-})
+router.post('/loadFingerPrints', async (req, res) => {
+  try {
+    const filePath = req.body.filePath;
+    const message = await fingerPrintService.loadFingerPrints(filePath);
+    res.send(message);
+  } catch (error) {
+    console.error('[router] loadFingerPrints error:', error);
+    res.send({ success: false, message: error.message });
+  }
+});
+
+//导出指纹信息
+router.post('/exportFingerPrints', async (req, res) => {
+  try {
+    const filePath = req.body.filePath;
+    const message = await fingerPrintService.exportFingerPrints(filePath);
+    res.send(message);
+  } catch (error) {
+    console.error('[router] exportFingerPrints error:', error);
+    res.send({ success: false, message: error.message });
+  }
+});
+
 //生成指纹
 router.post('/generateFingerPrints',async(req,res)=>{
   const counts = req.body.counts;

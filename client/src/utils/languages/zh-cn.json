@@ -509,5 +509,13 @@
     "chooseWalletModal.walletName": "\u94b1\u5305\u540d\u79f0",
     "chooseWalletModal.walletAddress": "\u94b1\u5305\u5730\u5740",
     "chooseWalletModal.normalExec": "\u666e\u901a\u6267\u884c",
-    "chooseWalletModal.proxyExec": "\u4ee3\u7406\u6267\u884c"
+    "chooseWalletModal.proxyExec": "\u4ee3\u7406\u6267\u884c",
+    "fingerprint.importBtn": "\u5bfc\u5165\u6307\u7eb9",
+    "fingerprint.exportBtn": "\u5bfc\u51fa\u6307\u7eb9",
+    "fingerprint.importing": "\u5bfc\u5165\u4e2d...",
+    "fingerprint.exporting": "\u5bfc\u51fa\u4e2d...",
+    "fingerprint.importSuccess": "\u6307\u7eb9\u5bfc\u5165\u6210\u529f",
+    "fingerprint.importFailed": "\u6307\u7eb9\u5bfc\u5165\u5931\u8d25",
+    "fingerprint.exportSuccess": "\u6307\u7eb9\u5bfc\u51fa\u6210\u529f",
+    "fingerprint.exportFailed": "\u6307\u7eb9\u5bfc\u51fa\u5931\u8d25"
 }
