@@ -287,7 +287,7 @@ async function loadFingerPrints(filePath) {
 async function exportFingerPrints(filePath) {
     try {
         const data = await new Promise((resolve, reject) => {
-            const db = getConfig().getFingerPrintDb();
+            const db = config.getFingerPrintDb();
             db.find({}, (err, docs) => {
                 if (err) reject(err);
                 else resolve(docs);
