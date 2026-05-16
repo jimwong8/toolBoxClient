@@ -150,27 +150,27 @@
       .btn-row {
         display: flex;
         flex-wrap: wrap;
-        justify-content: flex-end;
-        gap: 0.75rem;
+        justify-content: flex-start;
+        gap: 0.5rem;
         margin-top: 1rem;
-        .btn {
-          font-size: 0.95rem;
+        .btn, .btn-generate-fingerprint, .btn-import-fingerprint, .btn-export-fingerprint {
+          font-size: 0.88rem;
           border-radius: 4px;
           color: #fff;
           background: $clr-btn-primary;
           border: none;
-          padding: 0.5rem 0.5rem;
-          min-width: 0;
+          padding: 0.45rem 0.7rem;
           white-space: nowrap;
           &:hover { background: $clr-btn-primary-hover; }
+          &:disabled { opacity: 0.65; cursor: not-allowed; }
         }
         .btn-import-fingerprint {
           background: #28a745;
-          &:hover { background: #218838; }
+          &:hover:not(:disabled) { background: #218838; }
         }
         .btn-export-fingerprint {
           background: #17a2b8;
-          &:hover { background: #138496; }
+          &:hover:not(:disabled) { background: #138496; }
         }
       }
     }
@@ -261,6 +261,17 @@
     padding: 0.65rem 0.65rem 0.8rem;
     .control-panel, .fingerprint-list-card {
       max-width: 100%;
+    }
+    .control-panel .card-body {
+      padding: 0.8rem 0.6rem;
+      .btn-row {
+        justify-content: flex-start;
+        gap: 0.4rem;
+        .btn, .btn-generate-fingerprint, .btn-import-fingerprint, .btn-export-fingerprint {
+          font-size: 0.82rem;
+          padding: 0.4rem 0.55rem;
+        }
+      }
     }
   }
 }
