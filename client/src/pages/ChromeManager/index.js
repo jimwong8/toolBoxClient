@@ -1,4 +1,4 @@
-import { Container, Button, Card, Row, Col } from "react-bootstrap";
+import { Container, Button, Card, Row, Col, Spinner } from "react-bootstrap";
 import { useTranslation } from "react-i18next";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import APIManager from "../../utils/api";
@@ -7,6 +7,7 @@ import useFingerPrintStore from '../../store/fingerPrintStore';
 import usePathStore from '../../store/pathStore';
 import useWalletStore from '../../store/walletStore';
 import { eventEmitter } from '../../utils/eventEmitter';
+import { useToast } from '../../components/Toast';
 import './index.scss';
 
 
@@ -15,11 +16,13 @@ import './index.scss';
 
 const ChromeManager = () => {
     const { t } = useTranslation();
+    const { showSuccess, showError } = useToast();
     const api = APIManager.getInstance();
     const fingerPrintsObj = useFingerPrintStore(state => state.fingerPrints);
     const setFingerPrints = useFingerPrintStore(state => state.setFingerPrints);
     const setWallets = useWalletStore(state => state.setWallets);
     const wallets = useWalletStore(state => state.wallets);
+    const [loading, setLoading] = useState({});
     // 兼容对象结构
     const fingerPrints = useMemo(() => (
         fingerPrintsObj && typeof fingerPrintsObj === 'object' ? Object.values(fingerPrintsObj) : []
@@ -118,15 +121,21 @@ const ChromeManager = () => {
             const res = await api.runInstaller();
             if (res && res.success) {
                 setInstallStatus('success');
+                showSuccess(t('browserInstall.installSuccess'));
                 fetchPaths();
+                setTimeout(() => setInstallStatus('idle'), 5000);
             } else {
                 setInstallStatus('error');
                 setInstallError(res?.message || t('browserInstall.installFailed'));
+                showError(res?.message || t('browserInstall.installFailed'));
+                setTimeout(() => setInstallStatus('idle'), 8000);
             }
         } catch (error) {
             console.error('Install error:', error);
             setInstallStatus('error');
             setInstallError(error.message || t('browserInstall.installFailed'));
+            showError(error.message || t('browserInstall.installFailed'));
+            setTimeout(() => setInstallStatus('idle'), 8000);
         }
     };
 
@@ -286,28 +295,29 @@ const ChromeManager = () => {
                         text: t('generateButton'),
                         colWidth: 3,
                         style: { textAlign: 'center', minWidth: '80px' },
-                        click: () => {
-                            console.log('generateButton clicked');
-                            console.log('modalRef.current.valueObj:', modalRef.current.getValue('generateCount'));
+                        click: async () => {
                             const rawCount = modalRef.current.getValue('generateCount');
                             const generateCount = parseInt(rawCount, 10);
                             if (!Number.isFinite(generateCount) || generateCount <= 0) {
-                                alert(t('invalidGenerateCount'));
+                                showError(t('invalidGenerateCount'));
                                 return;
                             }
-                            api.generateFingerPrints(generateCount).then((data) => {
+                            setLoading((prev) => ({ ...prev, generateFingerprint: true }));
+                            try {
+                                const data = await api.generateFingerPrints(generateCount);
                                 if (data && data.success) {
-                                    alert(t('generateSuccess'));
+                                    showSuccess(t('generateSuccess'));
                                     fetchBaseFingerprintCount();
-                                    // 刷新指纹列表
                                     refreshFingerPrints();
                                     setModalProps({ show: false });
                                 } else {
-                                    alert(t('generateFailed') + ': ' + (data.message || t('unknownError')));
+                                    showError(data?.message || t('generateFailed'));
                                 }
-                            }).catch((error) => {
-                                console.error(t('generateError'), error);
-                                alert(t('generateFailed'));
+                            } catch (error) {
+                                showError(t('generateFailed'));
+                            } finally {
+                                setLoading((prev) => ({ ...prev, generateFingerprint: false }));
+                            }
                             });
                         }
                     }
@@ -432,84 +442,90 @@ const ChromeManager = () => {
     // 删除选中环境
     const deleteSelected = async () => {
         if (selectedIds.length === 0) {
-            alert(t('noSelected'));
+            showError(t('noSelected'));
             return;
         }
-        // 调用后端批量删除
-        const res = await api.deleteFingerPrints(selectedIds);
-        if (res && res.success) {
-            const removedEnvIds = new Set(selectedIds);
-            const walletsToDelete = Array.isArray(wallets)
-                ? wallets.filter((w) => w.bindEnvId && removedEnvIds.has(w.bindEnvId)).map((w) => w.id)
-                : [];
+        setLoading((prev) => ({ ...prev, deleteSelected: true }));
+        try {
+            const res = await api.deleteFingerPrints(selectedIds);
+            if (res && res.success) {
+                const removedEnvIds = new Set(selectedIds);
+                const walletsToDelete = Array.isArray(wallets)
+                    ? wallets.filter((w) => w.bindEnvId && removedEnvIds.has(w.bindEnvId)).map((w) => w.id)
+                    : [];
 
-            if (walletsToDelete.length) {
-                const walletRes = await api.deleteWallets(walletsToDelete);
-                if (!walletRes || !walletRes.success) {
-                    console.error('deleteWallets failed:', walletRes);
-                } else {
-                    const remainingWallets = wallets.filter((w) => !walletsToDelete.includes(w.id));
-                    setWallets(remainingWallets);
-                }
-            }
-
-            try {
-                const storedGroups = localStorage.getItem('syncGroups');
-                if (storedGroups) {
-                    const parsed = JSON.parse(storedGroups);
-                    if (Array.isArray(parsed)) {
-                        const removedWalletSet = new Set(walletsToDelete);
-                        const filtered = parsed.filter((group) => {
-                            const mode = group.mode || 'wallet';
-                            if (mode === 'env') {
-                                if (removedEnvIds.has(group.master)) return false;
-                                const slaves = Array.isArray(group.slaves) ? group.slaves : [];
-                                return !slaves.some((id) => removedEnvIds.has(id));
-                            }
-                            if (removedWalletSet.has(group.master)) return false;
-                            const slaves = Array.isArray(group.slaves) ? group.slaves : [];
-                            return !slaves.some((id) => removedWalletSet.has(id));
-                        });
-                        localStorage.setItem('syncGroups', JSON.stringify(filtered));
+                if (walletsToDelete.length) {
+                    const walletRes = await api.deleteWallets(walletsToDelete);
+                    if (!walletRes || !walletRes.success) {
+                        console.error('deleteWallets failed:', walletRes);
+                    } else {
+                        const remainingWallets = wallets.filter((w) => !walletsToDelete.includes(w.id));
+                        setWallets(remainingWallets);
                     }
                 }
-            } catch (error) {
-                console.error('Failed to update syncGroups:', error);
-            }
 
-            // 前端同步移除
-            const newObj = { ...fingerPrintsObj };
-            selectedIds.forEach(id => { delete newObj[id]; });
-            setFingerPrints(newObj);
-            setSelectedIds([]);
-            alert(t('deleteSuccess'));
-        } else {
-            alert(t('deleteFailed') + ': ' + (res && res.message ? res.message : t('unknownError', '未知错误')));
+                try {
+                    const storedGroups = localStorage.getItem('syncGroups');
+                    if (storedGroups) {
+                        const parsed = JSON.parse(storedGroups);
+                        if (Array.isArray(parsed)) {
+                            const removedWalletSet = new Set(walletsToDelete);
+                            const filtered = parsed.filter((group) => {
+                                const mode = group.mode || 'wallet';
+                                if (mode === 'env') {
+                                    if (removedEnvIds.has(group.master)) return false;
+                                    const slaves = Array.isArray(group.slaves) ? group.slaves : [];
+                                    return !slaves.some((id) => removedEnvIds.has(id));
+                                }
+                                if (removedWalletSet.has(group.master)) return false;
+                                const slaves = Array.isArray(group.slaves) ? group.slaves : [];
+                                return !slaves.some((id) => removedWalletSet.has(id));
+                            });
+                            localStorage.setItem('syncGroups', JSON.stringify(filtered));
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to update syncGroups:', error);
+                }
+
+                const newObj = { ...fingerPrintsObj };
+                selectedIds.forEach(id => { delete newObj[id]; });
+                setFingerPrints(newObj);
+                setSelectedIds([]);
+                showSuccess(t('deleteSuccess'));
+            } else {
+                showError(res?.message || t('deleteFailed'));
+            }
+        } catch (error) {
+            showError(error.message || t('deleteFailed'));
+        } finally {
+            setLoading((prev) => ({ ...prev, deleteSelected: false }));
         }
     };
 
     // 打开指纹环境
-    const openEnv = (id) => {
-        // 检测绑定的钱包是否已初始化
+    const openEnv = async (id) => {
         const fp = fingerPrintsObj[id];
         if (fp && fp.bindWalletId) {
             const boundWallet = Array.isArray(wallets) && wallets.find(w => w.id === fp.bindWalletId);
             if (boundWallet && !boundWallet.walletInitialized) {
-                alert(t('walletNotInitialized', '该环境绑定的钱包尚未初始化，请先初始化钱包'));
+                showError(t('walletNotInitialized'));
                 return;
             }
         }
-        api.execTask('openChrome', { envIds:[id] }).then((res) => {
-            console.log('openEnv response:', res);
+        setLoading((prev) => ({ ...prev, [`open_${id}`]: true }));
+        try {
+            const res = await api.execTask('openChrome', { envIds: [id] });
             if (res && res.success) {
-                alert(t('openEnvSuccess', res.message));
+                showSuccess(t('openEnvSuccess'));
             } else {
-                alert(t('openEnvFailed') + ': ' + (res.message || t('unknownError', '未知错误')));
+                showError(res?.message || t('openEnvFailed'));
             }
-        }).catch((error) => {
-            console.error(t('openEnvError', '打开环境错误'), error);
-            alert(t('openEnvFailed') + ': ' + (error.message || t('unknownError', '未知错误')));
-        });
+        } catch (error) {
+            showError(error.message || t('openEnvFailed'));
+        } finally {
+            setLoading((prev) => ({ ...prev, [`open_${id}`]: false }));
+        }
     }
 
     // 设置IP代理
@@ -563,48 +579,49 @@ const ChromeManager = () => {
                 [
                     { type: 'label', text: '', colWidth: 2 },
                     { type: 'button', text: t('testProxy'), key: 'proxyTest', colWidth: 3,
-                        click: () => {
+                        click: async () => {
                             const ipType = modalRef.current.getValue('ipType') || 'http';
                             const ipHost = modalRef.current.getValue('ipHost');
                             const ipPort = modalRef.current.getValue('ipPort');
                             const ipUsername = modalRef.current.getValue('ipUsername');
                             const ipPassword = modalRef.current.getValue('ipPassword');
                             if (!ipHost || !ipPort) {
-                                alert(t('2019'));
+                                showError(t('2019'));
                                 return;
                             }
                             modalRef.current.updateValueObj('proxyTest_loading', t('testingProxy'));
-                            console.log('Testing proxy:', ipType, ipHost, ipPort, ipUsername, ipPassword);
-                            api.checkProxy({ipType, ipHost, ipPort, ipUsername, ipPassword}).then((data) => {
-                                modalRef.current.updateValueObj('proxyTest_loading', false);
+                            try {
+                                const data = await api.checkProxy({ipType, ipHost, ipPort, ipUsername, ipPassword});
                                 if (data && data.success) {
-                                    alert(t('0'));
-                                    console.log('Proxy test result:', data);
+                                    showSuccess(t('0'));
                                 } else {
-                                    alert(t(data.code) + ': ' + (data.message || t('unknownError')));
+                                    showError(t(data.code) + ': ' + (data.message || t('unknownError')));
                                 }
-                            }).catch((error) => {
+                            } catch (error) {
+                                showError(t('4006'));
+                            } finally {
                                 modalRef.current.updateValueObj('proxyTest_loading', false);
-                                console.error(t('4006'), error);
-                                alert(t('4006'));
-                            });
+                            }
                         }},
-                    { type: 'button', text: t('deleteProxy'), colWidth: 3, click: () => {
-                        api.deleteFingerPrintProxy(id).then((data) => {
+                    { type: 'button', text: t('deleteProxy'), colWidth: 3, click: async () => {
+                        setLoading((prev) => ({ ...prev, [`deleteProxy_${id}`]: true }));
+                        try {
+                            const data = await api.deleteFingerPrintProxy(id);
                             if (data && data.success) {
-                                alert(t('updateSuccess'));
+                                showSuccess(t('updateSuccess'));
                                 const newFingerPrints = { ...fingerPrintsObj, [id]: { ...fp, proxy: null } };
                                 setFingerPrints(newFingerPrints);
                                 setModalProps({ show: false });
                             } else {
-                                alert(t('updateFailed') + ': ' + (data.message || t('unknownError', '未知错误')));
+                                showError(data?.message || t('updateFailed'));
                             }
-                        }).catch((error) => {
-                            console.error(t('updateError', '更新错误:'), error);
-                            alert(t('updateFailed', '更新失败'));
-                        });
+                        } catch (error) {
+                            showError(error.message || t('updateFailed'));
+                        } finally {
+                            setLoading((prev) => ({ ...prev, [`deleteProxy_${id}`]: false }));
+                        }
                     } },
-                    { type: 'button', text: t('saveConfig'), colWidth: 3, click: () => {
+                    { type: 'button', text: t('saveConfig'), colWidth: 3, click: async () => {
                         const ipType = modalRef.current.getValue('ipType') || 'http';
                         const ipHost = modalRef.current.getValue('ipHost');
                         const ipPort = modalRef.current.getValue('ipPort');
@@ -612,33 +629,31 @@ const ChromeManager = () => {
                         const ipPassword = modalRef.current.getValue('ipPassword');
 
                         if (!ipHost || !ipPort) {
-                            alert(t('2019'));
+                            showError(t('2019'));
                             return;
                         }
 
-                        api.updateFingerPrintProxy(id, {
-                            ipType,
-                            ipHost,
-                            ipPort,
-                            ipUsername,
-                            ipPassword
-                        }).then((data) => {
+                        setLoading((prev) => ({ ...prev, [`saveProxy_${id}`]: true }));
+                        try {
+                            const data = await api.updateFingerPrintProxy(id, {
+                                ipType, ipHost, ipPort, ipUsername, ipPassword
+                            });
                             if (data && data.success) {
-                                alert(t('updateSuccess'));
-                                // 更新本地状态（后端返回完整 fingerprint，含 position/webrtc_public/timeZone）
+                                showSuccess(t('updateSuccess'));
                                 const updated = data.data || fp;
                                 const newFingerPrints = { ...fingerPrintsObj, [id]: { ...fp, ...updated } };
                                 setFingerPrints(newFingerPrints);
                                 setModalProps({ show: false });
                             } else {
-                                alert(t('updateFailed') + ': ' + (data.message || t('unknownError', '未知错误')));
+                                showError(data?.message || t('updateFailed'));
                             }
-                        }).catch((error) => {
-                            console.error(t('updateError', '更新错误:'), error);
-                            alert(t('updateFailed', '更新失败'));
-                        });
+                        } catch (error) {
+                            showError(error.message || t('updateFailed'));
+                        } finally {
+                            setLoading((prev) => ({ ...prev, [`saveProxy_${id}`]: false }));
+                        }
                     } },
-                    
+
                 ]
             ]
         });

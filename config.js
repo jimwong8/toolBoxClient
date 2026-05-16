@@ -33,9 +33,12 @@ class Config {
                 this.defaultExecPath = this.isBuild
                     ? path.join(this.assetsPath, '/node_for_mac/node-v21.6.2-mac/bin/node')
                     : process.execPath;
-} else {
+            } else {
                 this.platform = process.platform;
-                this.defaultExecPath = process.execPath;
+                const bundledLinuxNode = path.join(this.assetsPath, 'node_for_linux/node-v20.18.1-linux-x64/bin/node');
+                this.defaultExecPath = fs.existsSync(bundledLinuxNode)
+                    ? bundledLinuxNode
+                    : process.execPath;
             }
             this.ip2LocationDbPath = path.join(this.assetsPath, '/ip2location/IP2LOCATION-LITE-DB11.BIN');
             this.fingerprintChromiumPath = this.isBuild
@@ -415,6 +418,9 @@ class Config {
         if (this._paths.installerPath) {
             return { success: true, path: this._paths.installerPath };
         }
+        if (process.platform === 'linux') {
+            return { success: false, path: null };
+        }
         // 检查 assets 目录下是否存在 mini_installer.exe
         const assetsInstaller = path.join(this.assetsPath, 'mini_installer.exe');
         if (fs.existsSync(assetsInstaller)) {
@@ -429,6 +435,16 @@ class Config {
      * @returns {Promise<{success: boolean, message: string, chromePath?: string}>}
      */
     async runInstaller() {
+        if (process.platform === 'linux') {
+            const fpPath = this.getFingerprintChromiumPath();
+            if (fpPath.success) {
+                this.setChromePath(fpPath.path);
+                console.log(`[runInstaller] Linux: using bundled fingerprint-chromium at ${fpPath.path}`);
+                return { success: true, message: 'Linux: using bundled fingerprint-chromium', chromePath: fpPath.path };
+            }
+            return { success: false, message: `Bundled fingerprint-chromium not found at ${this.fingerprintChromiumPath}` };
+        }
+
         const { execFile } = require('child_process');
         const installerRes = this.getInstallerPath();
         if (!installerRes.success || !installerRes.path) {

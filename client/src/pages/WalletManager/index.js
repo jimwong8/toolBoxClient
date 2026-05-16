@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Container, Row, Col, Button, Card } from 'react-bootstrap';
+import { Container, Row, Col, Button, Card, Spinner } from 'react-bootstrap';
 import CustomModal from '../../components/customModal';
 import APIManager from '../../utils/api';
 import { eventEmitter } from '../../utils/eventEmitter';
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import usePathStore from '../../store/pathStore';
 import useFingerPrintStore from '../../store/fingerPrintStore';
 import useWalletStore from '../../store/walletStore';
+import { useToast } from '../../components/Toast';
 import './index.scss';
 
 
@@ -41,10 +42,12 @@ const DeletingOverlay = ({ show, text }) => {
 
 const WalletManage = () => {
   const { t } = useTranslation();
+  const { showSuccess, showError } = useToast();
   const [modalProp, setModalProp] = useState({ show: false });
   const [walletList, setWalletList] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [deleting, setDeleting] = useState(false);
+  const [loading, setLoading] = useState({});
   const savePath = usePathStore((state) => state.savePath);
   const fetchPaths = usePathStore((state) => state.fetchPaths);
   const fingerPrints = useFingerPrintStore((state) => state.fingerPrints);
@@ -290,21 +293,27 @@ const WalletManage = () => {
             type: 'button',
             text: t('bind'),
             colWidth: 4,
-            click: () => {
+            click: async () => {
               const envId = childRef.current.getValue('envId');
               if (!envId) {
-                alert(t('2007'));
+                showError(t('2007'));
                 return;
               }
-              apiManager.bindWalletEnv(wallet.id, envId).then((data) => {
+              setLoading((prev) => ({ ...prev, [`bind_${wallet.id}`]: true }));
+              try {
+                const data = await apiManager.bindWalletEnv(wallet.id, envId);
                 if (data && data.success) {
-                  alert(t('0'));
+                  showSuccess(t('0'));
                   setModalProp({ show: false });
                   refreshWalletAndFingerPrints();
                 } else {
-                  alert(t(data.code) + ': ' + (data.message || t('unknownError')));
+                  showError(t(data.code) + ': ' + (data.message || t('unknownError')));
                 }
-              });
+              } catch (error) {
+                showError(error.message || t('unknownError'));
+              } finally {
+                setLoading((prev) => ({ ...prev, [`bind_${wallet.id}`]: false }));
+              }
             }
           }
         ]
@@ -313,15 +322,14 @@ const WalletManage = () => {
   };
 
   // 删除选中钱包
-  const deleteSelected = () => {
+  const deleteSelected = async () => {
     if (selectedIds.length === 0) {
-      alert(t('noSelected'));
+      showError(t('noSelected'));
       return;
     }
     setDeleting(true);
-    console.log('Deleting wallets:', selectedIds);
-    apiManager.deleteWallets(selectedIds).then((res) => {
-      setDeleting(false);
+    try {
+      const res = await apiManager.deleteWallets(selectedIds);
       if (res && res.success) {
         try {
           const storedGroups = localStorage.getItem('syncGroups');
@@ -331,9 +339,7 @@ const WalletManage = () => {
               const removedWallets = new Set(selectedIds);
               const filtered = parsed.filter((group) => {
                 const mode = group.mode || 'wallet';
-                if (mode !== 'wallet') {
-                  return true;
-                }
+                if (mode !== 'wallet') return true;
                 if (removedWallets.has(group.master)) return false;
                 const slaves = Array.isArray(group.slaves) ? group.slaves : [];
                 return !slaves.some((id) => removedWallets.has(id));
@@ -344,19 +350,19 @@ const WalletManage = () => {
         } catch (error) {
           console.error('Failed to update syncGroups:', error);
         }
-        // 从本地状态中移除已删除的钱包
         setWalletList(walletList.filter(w => !selectedIds.includes(w.id)));
         setSelectedIds([]);
-        alert(t('deleteSuccess'));
-        fetchFingerPrints(); // refresh fingerprint envs
-        updateWalletList(); // 刷新钱包列表
+        showSuccess(t('deleteSuccess'));
+        fetchFingerPrints();
+        updateWalletList();
       } else {
-        alert(t('deleteFailed') + ': ' + (res && res.message ? res.message : t('unknownError')));
+        showError(res?.message || t('deleteFailed'));
       }
-    }).catch((err) => {
+    } catch (err) {
+      showError(err?.message || t('deleteFailed'));
+    } finally {
       setDeleting(false);
-      alert(t('deleteFailed') + ': ' + (err && err.message ? err.message : t('unknownError')));
-    });
+    }
   };
   const handleModalClose = () => {
     setModalProp({ ...modalProp, show: false });
@@ -395,36 +401,28 @@ const WalletManage = () => {
             text: t('wallet.modal.create.createButton'),
             colWidth: 4,
             style: { marginLeft: 'auto' },
-            click: () => {
+            click: async () => {
               const countInput = childRef.current.getValue('count');
-              console.log('countInput', countInput);
-              if (countInput) {
-                try {
-                  let count = parseInt(countInput);
-
-                  // let curWalletNum = walletList.length;
-                  if (isNaN(count) || count <= 0) {
-                    alert(t('wallet.modal.create.invalidNumber'));
-                    return;
-                  }
-                  apiManager.createWallets({
-                    count,
-                  }).then((res) => {
-                    console.log(res);
-                    if (res.success) {
-                      alert(t('wallet.modal.create.successCreated', { count }));
-                      handleModalClose();
-                      window.location.reload();
-                    } else {
-                      alert(res.message);
-                    }
-                  }
-                  );
-                } catch (error) {
-                  console.error('Create wallet failed:', error);
-                  alert(t('wallet.modal.create.failedGeneric'));
+              if (!countInput) return;
+              let count = parseInt(countInput);
+              if (isNaN(count) || count <= 0) {
+                showError(t('wallet.modal.create.invalidNumber'));
+                return;
+              }
+              setLoading((prev) => ({ ...prev, createWallet: true }));
+              try {
+                const res = await apiManager.createWallets({ count });
+                if (res.success) {
+                  showSuccess(t('wallet.modal.create.successCreated', { count }));
+                  handleModalClose();
+                  await updateWalletList();
+                } else {
+                  showError(res.message);
                 }
-
+              } catch (error) {
+                showError(t('wallet.modal.create.failedGeneric'));
+              } finally {
+                setLoading((prev) => ({ ...prev, createWallet: false }));
               }
             },
           },
@@ -478,24 +476,30 @@ const WalletManage = () => {
             text: t('exportWallet'),
             colWidth: 4,
             style: { marginLeft: 'auto' },
-            click: () => {
+            click: async () => {
               const directory = childRef.current.getValue('directory');
-              if (directory) {
-                const ids = selectedIds.length > 0 ? selectedIds : walletList.map(w => w.id);
-                if (!Array.isArray(ids) || ids.length === 0) {
-                  alert(t('noSelected'));
-                  return;
+              if (!directory) {
+                showError(t('invalidExportDirectory'));
+                return;
+              }
+              const ids = selectedIds.length > 0 ? selectedIds : walletList.map(w => w.id);
+              if (!Array.isArray(ids) || ids.length === 0) {
+                showError(t('noSelected'));
+                return;
+              }
+              setLoading((prev) => ({ ...prev, exportWallet: true }));
+              try {
+                const res = await apiManager.exportWallets(ids, directory);
+                if (res.success) {
+                  showSuccess(t('exportSuccess'));
+                  handleModalClose();
+                } else {
+                  showError(res.message);
                 }
-                apiManager.exportWallets(ids, directory).then((res) => {
-                  if (res.success) {
-                    alert(t('exportSuccess'));
-                    handleModalClose();
-                  } else {
-                    alert(res.message);
-                  }
-                });
-              } else {
-                alert(t('invalidExportDirectory'));
+              } catch (error) {
+                showError(error.message || t('unknownError'));
+              } finally {
+                setLoading((prev) => ({ ...prev, exportWallet: false }));
               }
             },
           },
@@ -548,32 +552,34 @@ const WalletManage = () => {
             text: t('importWallet'),
             colWidth: 4,
             style: { marginLeft: 'auto' },
-            click: () => {
+            click: async () => {
               const filePath = childRef.current.getValue('filePath');
               if (filePath) {
-                apiManager.importWallets(filePath).then((res) => {
+                setLoading((prev) => ({ ...prev, importWallet: true }));
+                try {
+                  const res = await apiManager.importWallets(filePath);
                   if (res.success) {
-                    alert(t('importSuccess') + `: ${res.message}`);
+                    showSuccess(t('importSuccess') + `: ${res.message}`);
+                    handleModalClose();
+                    await updateWalletList();
                   } else {
-                    alert(t('importFailed') + ': ' + (res.message || t('unknownError')));
+                    showError(t('importFailed') + ': ' + (res.message || t('unknownError')));
                   }
-                  handleModalClose();
-                  window.location.reload();
-                }).catch((err) => {
-                  alert(t('importFailed') + ': ' + (err.message || t('unknownError')));
-                });
+                } catch (err) {
+                  showError(t('importFailed') + ': ' + (err.message || t('unknownError')));
+                } finally {
+                  setLoading((prev) => ({ ...prev, importWallet: false }));
+                }
               } else {
-                alert(t('invalidImportFile'));
+                showError(t('invalidImportFile'));
               }
             },
-          },
+          ],
         ],
-      ],
-    });
-  };
+      });
+    };
 
-
-  const refreshWalletAndFingerPrints = async () => {
+    const refreshWalletAndFingerPrints = async () => {
     fetchFingerPrints();
     await updateWalletList();
   };
@@ -693,57 +699,54 @@ const WalletManage = () => {
       ],
     });
   }
-  const initWallets = () => {
+  const initWallets = async () => {
     const selectedWallets = walletList.filter(wallet => selectedIds.includes(wallet.id));
     if (selectedWallets.length === 0) {
-      alert(t('noSelected'));
+      showError(t('noSelected'));
       return;
     }
-    
-    // 检查是否有未绑定环境的钱包
+
     const unboundWallets = selectedWallets.filter(wallet => !wallet.bindEnvId);
     if (unboundWallets.length > 0) {
       const unboundNames = unboundWallets.map(w => w.name).join(', ');
-      alert(t('3010') + ': ' + unboundNames);
+      showError(t('3010') + ': ' + unboundNames);
       return;
     }
-    
-    apiManager.initWallets(selectedWallets.map(wallet => wallet.id)).then(async (res) => {
-      console.log('initWallets res:', res);
+
+    setLoading((prev) => ({ ...prev, initWallets: true }));
+    try {
+      const res = await apiManager.initWallets(selectedWallets.map(wallet => wallet.id));
       if (res.success) {
         await updateWalletList();
-        // 成功提示移除，避免阻塞后续任务状态更新
       } else {
-        console.warn('initWallets failed:', res);
-        // 显示具体的错误信息
-        const errorMsg = t(res.code) || res.message || t('unknownError');
-        alert(errorMsg);
+        showError(t(res.code) || res.message || t('unknownError'));
       }
-    }).catch((err) => {
-      console.error('initWallets error:', err);
-      alert(t('initFailed') + ': ' + (err.message || err));
-    });
+    } catch (err) {
+      showError(t('initFailed') + ': ' + (err.message || err));
+    } finally {
+      setLoading((prev) => ({ ...prev, initWallets: false }));
+    }
   }
 
-  // 新增：打开单个钱包（调用后端任务启动打开流程）
-  const openWallet = (wallet) => {
+  const openWallet = async (wallet) => {
     if (!wallet) return;
     if (!wallet.bindEnvId) {
-      alert(t('wallet.open.notBound'));
+      showError(t('wallet.open.notBound'));
       return;
     }
-    apiManager.openWallets([wallet.id]).then((res) => {
-      console.log('openWallet res:', res);
+    setLoading((prev) => ({ ...prev, [`open_${wallet.id}`]: true }));
+    try {
+      const res = await apiManager.openWallets([wallet.id]);
       if (res && res.success) {
-        alert(t('wallet.open.started'));
+        showSuccess(t('wallet.open.started'));
       } else {
-        console.warn('openWallet failed:', res);
-        alert((res && res.message) ? res.message : t('wallet.open.failed'));
+        showError(res?.message || t('wallet.open.failed'));
       }
-    }).catch((err) => {
-      console.error('openWallet error:', err);
-      alert(t('wallet.open.failed') + ': ' + (err.message || err));
-    });
+    } catch (err) {
+      showError(t('wallet.open.failed') + ': ' + (err.message || err));
+    } finally {
+      setLoading((prev) => ({ ...prev, [`open_${wallet.id}`]: false }));
+    }
   }
 
   return (

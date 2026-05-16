@@ -1,0 +1,34 @@
+.toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1100;
+
+  .toast-item {
+    min-width: 280px;
+    margin-bottom: 0.5rem;
+
+    &.toast-success {
+      .toast-header-text { color: #28a745; }
+    }
+    &.toast-error {
+      .toast-header-text { color: #dc3545; }
+    }
+    &.toast-warning {
+      .toast-header-text { color: #ffc107; }
+    }
+    &.toast-info {
+      .toast-header-text { color: #17a2b8; }
+    }
+
+    .toast-header-text {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-right: 0.5rem;
+    }
+    .toast-header-title {
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+  }
+}

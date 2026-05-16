@@ -4,6 +4,24 @@ const path = require('path');
 const fs = require('fs');
 const shell = require('electron').shell;
 
+function installSafeConsole() {
+  const methods = ['log', 'error', 'warn', 'info'];
+  for (const method of methods) {
+    const original = console[method].bind(console);
+    console[method] = (...args) => {
+      try {
+        original(...args);
+      } catch (err) {
+        if (!(err && err.code === 'EPIPE')) {
+          throw err;
+        }
+      }
+    };
+  }
+}
+
+installSafeConsole();
+
 // Force software rendering for virtual machines without dedicated GPU
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch('--disable-gpu');
@@ -386,8 +404,8 @@ app.whenReady().then(async () => {
   }
   // Log window state for debugging
   if (mainWindow) {
-    mainWindow.on('close', () => console.log('Main window closing'));
-    mainWindow.on('closed', () => { console.log('Main window closed'); mainWindow = null; });
+    mainWindow.on('close', () => {});
+    mainWindow.on('closed', () => { mainWindow = null; });
     // Prevent window-all-closed from quitting immediately in headless/Xvfb environments
     let windowCloseTime = 0;
     mainWindow.webContents.on('did-finish-load', () => {
@@ -408,13 +426,12 @@ app.whenReady().then(async () => {
     }
   });
   // Prevent accidental quit from signals in VM environment
-  process.on('SIGTERM', () => console.log('[Electron] SIGTERM received, ignoring'));
-  process.on('SIGINT', () => console.log('[Electron] SIGINT received, ignoring'));
-  process.on('SIGHUP', () => console.log('[Electron] SIGHUP received, ignoring'));
+  process.on('SIGTERM', () => {});
+  process.on('SIGINT', () => {});
+  process.on('SIGHUP', () => {});
 
   let forceQuit = false;
   app.on('before-quit', async (e) => {
-    console.log('[Electron] before-quit triggered');
     if (backendProcess) {
       try {
         // Gracefully shutdown backend via HTTP

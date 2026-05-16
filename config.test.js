@@ -272,15 +272,20 @@ describe('getInstallerPath()', () => {
         expect(result.success).toBe(false);
     });
 
-    it('returns assets installer when it exists', () => {
+    it('returns assets installer when it exists (Windows/Mac only, Linux skips .exe)', () => {
         const instance = Config.getInstance();
         fs.existsSync.mockImplementation((p) => {
             if (typeof p === 'string' && p.includes('mini_installer.exe')) return true;
             return false;
         });
         const result = instance.getInstallerPath();
-        expect(result.success).toBe(true);
-        expect(result.path).toContain('mini_installer.exe');
+        if (process.platform === 'linux') {
+            // Linux: mini_installer.exe is a Windows binary, always skipped
+            expect(result.success).toBe(false);
+        } else {
+            expect(result.success).toBe(true);
+            expect(result.path).toContain('mini_installer.exe');
+        }
     });
 
     it('returns user-set installer path when configured', () => {

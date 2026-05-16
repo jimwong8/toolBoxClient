@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import useFingerPrintStore from '../store/fingerPrintStore';
 import { eventEmitter } from '../utils/eventEmitter';
 import APIManager from '../utils/api';
+import { ToastProvider } from '../components/Toast';
 
 /** Routes where TaskOffcanvas should NOT auto-open (they have their own AI panel) */
 const SUPPRESS_OFFCANVAS_ROUTES = ['/agentWorkspace'];
@@ -130,6 +131,7 @@ const Layout = ({ Child }) => {
   }
 
   return (
+    <ToastProvider>
     <Container fluid className="p-0" style={{ height: '100vh' }}>
       <Row className="g-0" style={{ height: '100%' }}>
         {/* Sidebar */}
@@ -223,6 +225,7 @@ const Layout = ({ Child }) => {
         </main>
       </Row>
     </Container>
+    </ToastProvider>
   );
 };
 

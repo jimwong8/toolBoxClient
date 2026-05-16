@@ -20,61 +20,89 @@ function getConfig() {
 //   res.send(message);
 // });
 
-router.post('/createWallet', async(req, res) => {
-  const count = req.body.count || 1;
-  const message = await walletService.createWallet(count);
-  res.send(message);
+router.post('/createWallet', async (req, res) => {
+  try {
+    const count = req.body.count || 1;
+    const message = await walletService.createWallet(count);
+    res.send(message);
+  } catch (error) {
+    console.error('[router] createWallet error:', error);
+    res.send({ success: false, message: error.message });
+  }
 });
 
-router.post('/updateWalletName', async(req, res) => {
-  const { id, name } = req.body;
-  const message = await walletService.updateWalletName(id, name);
-  res.send(message);
+router.post('/updateWalletName', async (req, res) => {
+  try {
+    const { id, name } = req.body;
+    const message = await walletService.updateWalletName(id, name);
+    res.send(message);
+  } catch (error) {
+    console.error('[router] updateWalletName error:', error);
+    res.send({ success: false, message: error.message });
+  }
 });
-router.get('/getAllWallets', async(req, res) => {
-  const message = await walletService.getAllWallets();
-  // console.log('message:', message);
-  res.send(message);
+router.get('/getAllWallets', async (req, res) => {
+  try {
+    const message = await walletService.getAllWallets();
+    res.send(message);
+  } catch (error) {
+    console.error('[router] getAllWallets error:', error);
+    res.send({ success: false, message: error.message });
+  }
 });
-router.put('/updateWallet', async(req, res) => {
-  const { id, ...wallet } = req.body;
-  const message = await walletService.updateWallet(id, wallet);
-  console.log('message:', message);
-  res.send(message);
+router.put('/updateWallet', async (req, res) => {
+  try {
+    const { id, ...wallet } = req.body;
+    const message = await walletService.updateWallet(id, wallet);
+    res.send(message);
+  } catch (error) {
+    console.error('[router] updateWallet error:', error);
+    res.send({ success: false, message: error.message });
+  }
 });
 
-router.delete('/deleteWallets', async(req, res) => {
-  const ids = req.body.ids;
-  const message = await walletService.deleteWallets(ids);
-  res.send(message);
+router.delete('/deleteWallets', async (req, res) => {
+  try {
+    const ids = req.body.ids;
+    const message = await walletService.deleteWallets(ids);
+    res.send(message);
+  } catch (error) {
+    console.error('[router] deleteWallets error:', error);
+    res.send({ success: false, message: error.message });
+  }
 });
-router.post('/exportWallets', async(req, res) => {
-  const ids = req.body.ids;
-  const directory = req.body.directory;
-  console.log('exportWallets params:', { ids, directory });
-  const message = await walletService.exportWallets(ids,directory);
-  console.log('message:', message);
-
-  res.send(message);
-})
+router.post('/exportWallets', async (req, res) => {
+  try {
+    const ids = req.body.ids;
+    const directory = req.body.directory;
+    const message = await walletService.exportWallets(ids, directory);
+    res.send(message);
+  } catch (error) {
+    console.error('[router] exportWallets error:', error);
+    res.send({ success: false, message: error.message });
+  }
+});
 router.post('/importWallets', async(req, res) => {
   const filePath = req.body.filePath;
-  try{
+  try {
     const message = await walletService.importWallets(filePath);
     console.log('message:', message);
     res.send(message);
-  }catch(error){
-    console.error('error:', error);
-    
-    res.send(error.message);
+  } catch (error) {
+    console.error('[router] importWallets error:', error);
+    res.send({ success: false, message: error.message });
   }
-})
-router.post('/initWallets', async(req, res) => {
-  const ids = req.body.ids;
-  const message = await walletService.initWallets(ids);
-  console.log('message:', message);
-  res.send(message);
-})
+});
+router.post('/initWallets', async (req, res) => {
+  try {
+    const ids = req.body.ids;
+    const message = await walletService.initWallets(ids);
+    res.send(message);
+  } catch (error) {
+    console.error('[router] initWallets error:', error);
+    res.send({ success: false, message: error.message });
+  }
+});
 router.post('/openWallets', async(req, res) => {
   const ids = req.body.ids;
   console.log('ids:', ids);
@@ -203,12 +231,15 @@ router.post('/resetAgentForTest', async (req, res) => {
   );
   res.send(result);
 });
-router.delete('/deleteTask', async(req, res) => {
-  console.log('req.body:', req.body.taskNames);
-  const taskNames = req.body.taskNames;
-  const delete_num = await taskService.deleteTask(taskNames);
-  const message = `delete ${delete_num} tasks`;
-  res.send(message);
+router.delete('/deleteTask', async (req, res) => {
+  try {
+    const taskNames = req.body.taskNames;
+    const delete_num = await taskService.deleteTask(taskNames);
+    res.send({ success: true, message: `Deleted ${delete_num} tasks` });
+  } catch (error) {
+    console.error('[router] deleteTask error:', error);
+    res.send({ success: false, message: error.message });
+  }
 });
 router.post('/setSavePath',async(req,res)=>{
   const path = req.body.path;
@@ -533,7 +564,7 @@ router.get('/getWalletScriptDirectory', async (req, res) => {
 });
 
 router.post('/resetWalletScriptDirectory', async (req, res) => {
-  const message = config.resetWalletScriptDirectory();
+  const message = getConfig().resetWalletScriptDirectory();
   if (message && message.success) {
     await walletService.resetAllWalletsInitialized();
   }
@@ -542,17 +573,17 @@ router.post('/resetWalletScriptDirectory', async (req, res) => {
 
 router.post('/setSyncScriptDirectory', async (req, res) => {
   const directory = req.body.directory;
-  const message = await config.setSyncScriptDirectory(directory);
+  const message = await getConfig().setSyncScriptDirectory(directory);
   res.send(message);
 });
 
 router.get('/getSyncScriptDirectory', async (req, res) => {
-  const message = config.getSyncScriptDirectory();
+  const message = getConfig().getSyncScriptDirectory();
   res.send(message);
 });
 
 router.post('/resetSyncScriptDirectory', async (req, res) => {
-  const message = config.resetSyncScriptDirectory();
+  const message = getConfig().resetSyncScriptDirectory();
   res.send(message);
 });
 

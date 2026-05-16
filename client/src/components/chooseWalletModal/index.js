@@ -1,7 +1,10 @@
 import APIManager from "../../utils/api";
 import { Modal, Button, Row, Col } from "react-bootstrap";
 import { useState, useEffect } from "react";
-const ChooseWalletModal = ({ show, onHide, confirm }) => {
+import { useTranslation } from "react-i18next";
+
+const chooseWalletModal = ({ show, onHide, confirm }) => {
+    const { t } = useTranslation();
     const apiManager = APIManager.getInstance();
     const [wallets, setWallets] = useState([]);
     const [selectAll, setSelectAll] = useState(false);
@@ -22,7 +25,7 @@ const ChooseWalletModal = ({ show, onHide, confirm }) => {
         });
         setWallets(newWallets);
     }
-    
+
     useEffect(() => {
         apiManager.getAllWallets().then((res) => {
             const newWallets = res.map((wallet) => {
@@ -37,18 +40,18 @@ const ChooseWalletModal = ({ show, onHide, confirm }) => {
     return (
         <Modal show={show} onHide={onHide} centered>
             <Modal.Header closeButton>
-                <Modal.Title>选择钱包</Modal.Title>
+                <Modal.Title>{t('chooseWalletModal.title', 'Choose Wallet')}</Modal.Title>
             </Modal.Header>
             <Modal.Body style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
                 <Row>
                     <Col md={1} style={{ fontSize: '1.0vw' }}>
-                        <input type='checkbox' checked={selectAll} onChange={toggleSelectAll} />全选
+                        <input type='checkbox' checked={selectAll} onChange={toggleSelectAll} />{t('chooseWalletModal.selectAll', 'Select All')}
                     </Col>
                     <Col md={4} style={{ fontSize: '1.0vw' }}>
-                        钱包名称
+                        {t('chooseWalletModal.walletName', 'Wallet Name')}
                     </Col>
                     <Col md={7} style={{ fontSize: '1.0vw' }}>
-                        钱包地址
+                        {t('chooseWalletModal.walletAddress', 'Wallet Address')}
                     </Col>
                 </Row>
                 {wallets.map((wallet, index) => (
@@ -66,16 +69,16 @@ const ChooseWalletModal = ({ show, onHide, confirm }) => {
                 ))}
             </Modal.Body>
             <Modal.Footer>
-                <Button onClick={() => { 
+                <Button onClick={() => {
                     const selectedWallets = wallets.filter((wallet) => wallet.selected).map((wallet) => ({ ...wallet, useProxy: false }));
                     confirm(selectedWallets);
-                }}>普通执行</Button>
+                }}>{t('chooseWalletModal.normalExec', 'Normal Execution')}</Button>
                 <Button onClick={() => {
                     const selectedWallets = wallets.filter((wallet) => wallet.selected).map((wallet) => ({ ...wallet, useProxy: true }));
                     confirm(selectedWallets, true);
-                }}>代理执行</Button>
+                }}>{t('chooseWalletModal.proxyExec', 'Proxy Execution')}</Button>
             </Modal.Footer>
         </Modal>
     );
 }
-export default ChooseWalletModal;
+export default chooseWalletModal;

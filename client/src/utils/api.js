@@ -62,14 +62,22 @@ class APIManager {
         // Fallback: direct HTTP to backend
         const port = this._getPort();
         const url = `http://localhost:${port}/api/${path}`;
+        // Long-running operations need extended timeout
+        const isLongRunning = ['runInstaller', 'execTask', 'generateFingerPrints', 'openEnv', 'initWallets', 'initTwitter'].some(p => path.includes(p));
+        const timeout = isLongRunning ? 120000 : 10000;
         try {
-            const config = { timeout: 10000, headers: { 'Content-Type': 'application/json' } };
+            const config = { timeout, headers: { 'Content-Type': 'application/json' } };
             const res = method === 'GET' ? await axios.get(url, config)
-                : method === 'DELETE' ? await axios.delete(url, config)
+                : method === 'DELETE' ? await axios.delete(url, { ...config, data: body })
                 : await axios.post(url, body, config);
             return res.data;
         } catch (e) {
-            return { success: false, message: e.message };
+            const data = e.response?.data;
+            return {
+                success: false,
+                message: data?.message || e.message,
+                code: data?.code || e.response?.status || -1,
+            };
         }
     }
 
@@ -100,7 +108,7 @@ class APIManager {
     async setSavePath(path) { return this._proxy('post', 'setSavePath', { path }); }
     async getSavePath() { return this._proxy('get', 'getSavePath'); }
     async getWalletScriptDirectory() { return this._proxy('get', 'getWalletScriptDirectory'); }
-    async initTwitters(addresses) { return this._proxy('post', 'initTwitter', { addresses }); }
+    async initTwitters(addresses) { return this._proxy('post', 'initTwitters', { addresses }); }
     async checkWebSocket() { return this._proxy('get', 'checkWebSocket'); }
     async checkReadiness() { return this._proxy('get', 'readiness'); }
     async getTaskStatus(taskNames = []) { return this._proxy('post', 'getTaskStatus', { taskNames }); }
