@@ -77,6 +77,30 @@ const FONT_SETS = {
   ]
 };
 
+const DEFAULT_MATCHED_FINGERPRINTS = [
+  {
+    userAgentFingerprint: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    clientHintFingerprint: { platform: 'Windows', mobile: false, architecture: 'x86', bitness: '64' },
+    webglFingerprint: { vendor: 'Google Inc. (Intel)', renderer: 'ANGLE (Intel, Intel(R) UHD Graphics, D3D11)' },
+  },
+  {
+    userAgentFingerprint: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    clientHintFingerprint: { platform: 'Linux', mobile: false, architecture: 'x86', bitness: '64' },
+    webglFingerprint: { vendor: 'Google Inc. (Mesa)', renderer: 'ANGLE (AMD, AMD Radeon Graphics, OpenGL)' },
+  },
+  {
+    userAgentFingerprint: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    clientHintFingerprint: { platform: 'macOS', mobile: false, architecture: 'x86', bitness: '64' },
+    webglFingerprint: { vendor: 'Google Inc. (Apple)', renderer: 'ANGLE (Apple, Apple M1, Metal)' },
+  },
+];
+
+const DEFAULT_LANGUAGE_FINGERPRINTS = [
+  { jsLanguage: 'en-US', httpLanguage: 'en-US,en;q=0.9' },
+  { jsLanguage: 'zh-CN', httpLanguage: 'zh-CN,zh;q=0.9,en;q=0.8' },
+  { jsLanguage: 'en-GB', httpLanguage: 'en-GB,en;q=0.9' },
+];
+
 class SecureRandom {
   constructor(seed) {
     this.s = new Uint32Array(4);
@@ -191,8 +215,27 @@ if (fs.existsSync(fpDataPath)) {
     }
 }
 
-const envData = {};
+function ensureFpDataDefaults() {
+    if (!fpData || typeof fpData !== 'object') fpData = {};
+    if (!fpData.userdata || typeof fpData.userdata !== 'object') fpData.userdata = {};
+    if (!Array.isArray(fpData.userdata.fontsFamily) || fpData.userdata.fontsFamily.length === 0) {
+        fpData.userdata.fontsFamily = [...new Set([
+            ...FONT_SETS.windows,
+            ...FONT_SETS.macos,
+            ...FONT_SETS.linux,
+            ...FONT_SETS.android,
+            ...FONT_SETS.ios,
+        ])];
+    }
+    if (!Array.isArray(fpData.matchedFingerprintList) || fpData.matchedFingerprintList.length === 0) {
+        fpData.matchedFingerprintList = DEFAULT_MATCHED_FINGERPRINTS;
+    }
+    if (!Array.isArray(fpData.languageFingerprintList) || fpData.languageFingerprintList.length === 0) {
+        fpData.languageFingerprintList = DEFAULT_LANGUAGE_FINGERPRINTS;
+    }
+}
 
+const envData = {};
 function migrateFingerprint(fp) {
     if (!fp) return false;
     let changed = false;
@@ -350,6 +393,7 @@ async function generateRandomFingerPrint(counts) {
     if (!isFingerPrintDbAvailable()) {
         return { success: false, code: 2030, message: 'FingerPrint database not available. Please set save path first.' };
     }
+    ensureFpDataDefaults();
     if (!fpData.userdata || !Array.isArray(fpData.userdata.fontsFamily) || fpData.userdata.fontsFamily.length === 0) {
         return { success: false, message: 'fontsFamily missing' };
     }

@@ -14,6 +14,17 @@ function getConfig() {
 }
 
 // 定义路由
+
+// Terminate task — must be first to avoid WS path conflicts
+router.post('/terminateTask', async (req, res) => {
+  const { taskName } = req.body || {};
+  if (!taskName) {
+    return res.send({ success: false, message: 'taskName is required' });
+  }
+  const message = taskService.terminateTask(taskName);
+  res.send(message);
+});
+
 // router.get('/openScript', async(req, res) => {
 //   const message = await service.openScript();
 //   console.log('message:', message);

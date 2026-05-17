@@ -9,16 +9,30 @@ const PORT = process.env.WEB_PORT || 8080;
 // Proxy API requests to backend
 const http = require('http');
 app.use('/api', (req, res) => {
+    const bodyText = (req.method !== 'GET' && req.method !== 'HEAD' && req.body && Object.keys(req.body).length > 0)
+        ? JSON.stringify(req.body)
+        : null;
+
+    const headers = {
+        ...req.headers,
+        host: '127.0.0.1:30001',
+        accept: 'application/json'
+    };
+    if (bodyText) {
+        headers['content-type'] = 'application/json';
+        headers['content-length'] = Buffer.byteLength(bodyText);
+    } else {
+        delete headers['content-length'];
+    }
+
     const options = {
         hostname: '127.0.0.1',
         port: 30001,
         path: '/api' + req.url,
         method: req.method,
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
+        headers
     };
+
     const proxyReq = http.request(options, (proxyRes) => {
         let body = '';
         proxyRes.on('data', chunk => body += chunk);
@@ -33,8 +47,8 @@ app.use('/api', (req, res) => {
     proxyReq.on('error', (e) => {
         res.status(502).json({ success: false, message: 'Backend unavailable: ' + e.message });
     });
-    if (req.method !== 'GET' && req.body) {
-        proxyReq.write(JSON.stringify(req.body));
+    if (bodyText) {
+        proxyReq.write(bodyText);
     }
     proxyReq.end();
 });

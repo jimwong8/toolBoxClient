@@ -427,6 +427,63 @@ class TaskService {
         return { success: true, data: result };
     }
 
+    terminateTask(taskName) {
+        const proc = this.taskProcesses ? this.taskProcesses[taskName] : null;
+        if (proc) {
+            try { proc.kill('SIGTERM'); } catch (_) {}
+            try { proc.kill('SIGKILL'); } catch (_) {}
+            delete this.taskProcesses[taskName];
+        }
+        // 也清理所有以该 taskName 为前缀的运行时子任务（如 envId_syncFunction）
+        if (this.taskProcesses) {
+            Object.keys(this.taskProcesses).forEach((key) => {
+                if (key === taskName || key.endsWith(`_${taskName}`)) {
+                    try { this.taskProcesses[key].kill('SIGTERM'); } catch (_) {}
+                    try { this.taskProcesses[key].kill('SIGKILL'); } catch (_) {}
+                    delete this.taskProcesses[key];
+                }
+            });
+        }
+        if (this.isRunning) {
+            delete this.isRunning[taskName];
+            Object.keys(this.isRunning).forEach((key) => {
+                if (key.endsWith(`_${taskName}`)) delete this.isRunning[key];
+            });
+        }
+        if (this.isCompleted) {
+            delete this.isCompleted[taskName];
+            Object.keys(this.isCompleted).forEach((key) => {
+                if (key.endsWith(`_${taskName}`)) delete this.isCompleted[key];
+            });
+        }
+        if (this.isSuccess) {
+            delete this.isSuccess[taskName];
+            Object.keys(this.isSuccess).forEach((key) => {
+                if (key.endsWith(`_${taskName}`)) delete this.isSuccess[key];
+            });
+        }
+        if (this.heartBeatTimeoutId) {
+            if (this.heartBeatTimeoutId[taskName]) {
+                clearInterval(this.heartBeatTimeoutId[taskName]);
+                delete this.heartBeatTimeoutId[taskName];
+            }
+            Object.keys(this.heartBeatTimeoutId).forEach((key) => {
+                if (key.endsWith(`_${taskName}`)) {
+                    clearInterval(this.heartBeatTimeoutId[key]);
+                    delete this.heartBeatTimeoutId[key];
+                }
+            });
+        }
+        if (this.webSocketService) {
+            try {
+                this.webSocketService.sendToFront(
+                    this.taskCompletedMessage(taskName, false, '任务已被手动终止')
+                );
+            } catch (_) {}
+        }
+        return { success: true, message: `Task ${taskName} terminated` };
+    }
+
     // 将绑定的钱包信息添加到 envData 中（若存在 bindWalletId）
     async _attachWalletToEnvData(env, envData = {}) {
         try {

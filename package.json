@@ -149,6 +149,8 @@
     "portscanner": "^2.2.0",
     "process": "^0.11.10",
     "proxy-chain": "^2.4.0",
+    "puppeteer-core": "^24.43.1",
+    "puppeteer-extra": "^3.3.6",
     "qs": "^6.12.3",
     "react": "^18.2.0",
     "react-app-rewired": "^2.2.1",

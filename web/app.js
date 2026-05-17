@@ -35,6 +35,9 @@ const API = {
     exportWallets(ids, directory) { return this.post('api/exportWallets', { ids, directory }); },
     bindWalletEnv(walletId, envId) { return this.post('api/bindWalletEnv', { walletId, envId }); },
     getAllTasks(dt) { return this.get('api/getAllTasks?defaultTask=' + dt); },
+    getTaskStatus(taskNames) { return this.post('api/getTaskStatus', { taskNames }); },
+    terminateTask(taskName) { return this.post('api/terminateTask', { taskName }); },
+    getAgentTasks() { return this.get('api/getAgentTasks'); },
     execTask(name, data) { return this.post('api/execTask', { taskName: name, taskData: data }); },
     deleteTask(names) { return this.delete('api/deleteTask', { taskNames: names }); },
     getSavePath() { return this.get('api/getSavePath'); },
@@ -97,7 +100,7 @@ function Sidebar({ collapsed, setCollapsed, currentPage, onNavigate }) {
         ),
         React.createElement('div', { className: 'sidebar-divider' }),
         React.createElement('div', { className: 'sidebar-section' }, '系统'),
-        React.createElement('div', { className: 'nav-item', onClick: () => window.open('https://web3toolbox.app', '_blank') },
+        React.createElement('div', { className: 'nav-item', onClick: () => window.open('https://web3toolbox.app/', '_blank', 'noopener,noreferrer') },
             React.createElement('i', { className: 'bi bi-globe2' }),
             React.createElement('span', null, '官方网站')
         )
@@ -192,9 +195,30 @@ function ChromeManagerPage() {
     useEffect(() => { fetchData(); }, [fetchData]);
 
     const handleGenerate = async () => {
-        const res = await API.generateFingerPrints(genCount);
-        if (res.success) { toast('成功生成 ' + genCount + ' 个指纹', 'success'); fetchData(); }
-        else toast(res.message || '生成失败', 'error');
+        const count = Number(genCount);
+        if (!Number.isInteger(count) || count <= 0) {
+            toast('请输入大于 0 的整数生成数量', 'warning');
+            return;
+        }
+        const res = await API.generateFingerPrints(count);
+        if (res.success) {
+            toast('成功生成 ' + count + ' 个指纹', 'success');
+            fetchData();
+            return;
+        }
+        const msg = (res && res.message) ? String(res.message) : '生成失败';
+        if (msg.includes('fontsFamily missing')) {
+            toast('指纹基础数据未初始化（fontsFamily），正在使用默认字体重试', 'warning');
+            const retry = await API.generateFingerPrints(count);
+            if (retry.success) {
+                toast('成功生成 ' + count + ' 个指纹', 'success');
+                fetchData();
+                return;
+            }
+            toast(retry.message || '生成失败', 'error');
+            return;
+        }
+        toast(msg, 'error');
     };
 
     const handleImport = () => {
@@ -219,9 +243,17 @@ function ChromeManagerPage() {
     };
 
     const handleExport = async () => {
-        const res = await API.getFingerPrints();
-        if (res.success && res.data) {
+        try {
+            const res = await API.getFingerPrints();
+            if (!(res && res.success && res.data)) {
+                toast((res && res.message) ? res.message : '暂无可导出的指纹数据', 'warning');
+                return;
+            }
             const arr = Object.values(res.data);
+            if (!Array.isArray(arr) || arr.length === 0) {
+                toast('暂无可导出的指纹数据', 'warning');
+                return;
+            }
             const data = JSON.stringify(arr, null, 2);
             const blob = new Blob([data], { type: 'application/json;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
@@ -231,9 +263,14 @@ function ChromeManagerPage() {
             a.download = 'fingerprints_' + Date.now() + '.json';
             document.body.appendChild(a);
             a.click();
-            setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
+            setTimeout(() => {
+                if (a.parentNode) document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }, 100);
             toast('指纹导出成功 (' + arr.length + ' 个)', 'success');
-        } else { toast('导出失败', 'error'); }
+        } catch (err) {
+            toast('导出失败: ' + (err && err.message ? err.message : '未知错误'), 'error');
+        }
     };
 
     const handleDeleteSelected = async () => {
@@ -420,15 +457,251 @@ function TaskManagePage() {
 // SyncFunction Page
 // ============================================================
 function SyncFunctionPage() {
+    const [envs, setEnvs] = useState([]);
+    const [masterId, setMasterId] = useState('');
+    const [slaveIds, setSlaveIds] = useState([]);
+    const [running, setRunning] = useState(false);
+    const [syncState, setSyncState] = useState({ phase: 'idle', success: null, message: '' });
+    const [slaveProgress, setSlaveProgress] = useState({});
+    const [lastTaskLogs, setLastTaskLogs] = useState([]);
+    const toast = useToast();
+
+    const fetchData = useCallback(async () => {
+        const res = await API.getFingerPrints();
+        if (res && res.success && res.data) {
+            const arr = Object.values(res.data);
+            setEnvs(arr);
+            if (!masterId && arr.length > 0) setMasterId(arr[0].id || arr[0]._id || '');
+        } else {
+            setEnvs([]);
+        }
+    }, [masterId]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
+
+    useEffect(() => {
+        let ws = null;
+        try {
+            ws = new WebSocket('ws://127.0.0.1:30001/ws?clientTag=renderer-test');
+            ws.onmessage = (evt) => {
+                try {
+                    const msg = JSON.parse(evt.data || '{}');
+                    if (!msg || !msg.type) return;
+                    if (msg.type === 'task_log' && String(msg.taskName || '').includes('syncFunction')) {
+                        setLastTaskLogs(prev => [
+                            { time: msg.time || new Date().toLocaleString(), message: msg.message || '' },
+                            ...prev
+                        ].slice(0, 20));
+                        setSyncState(prev => ({ ...prev, message: msg.message || prev.message }));
+
+                        const text = String(msg.message || '');
+                        setSlaveProgress(prev => {
+                            const next = { ...prev };
+                            Object.keys(next).forEach((id) => {
+                                if (text.includes(id)) {
+                                    next[id] = { ...next[id], status: 'running', message: text, updatedAt: Date.now() };
+                                }
+                            });
+                            return next;
+                        });
+                    }
+                    if (msg.type === 'task_completed' && String(msg.taskName || '').includes('syncFunction')) {
+                        const ok = !!msg.success;
+                        setRunning(false);
+                        setSyncState({ phase: 'completed', success: ok, message: msg.message || (ok ? '同步完成' : '同步失败') });
+                        setSlaveProgress(prev => {
+                            const next = { ...prev };
+                            Object.keys(next).forEach((id) => {
+                                if (next[id].status !== 'success') {
+                                    next[id] = { ...next[id], status: ok ? 'success' : 'failed', message: msg.message || '', updatedAt: Date.now() };
+                                }
+                            });
+                            return next;
+                        });
+                    }
+                    if (msg.type === 'task_error' && String(msg.message || '').toLowerCase().includes('sync')) {
+                        setRunning(false);
+                        setSyncState({ phase: 'completed', success: false, message: msg.message || '同步失败' });
+                    }
+                } catch (_) {}
+            };
+        } catch (_) {}
+        return () => {
+            if (ws && ws.readyState === 1) ws.close();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!running) return undefined;
+        const timer = setInterval(async () => {
+            const res = await API.getTaskStatus(['syncFunction']);
+            const isRunningNow = !!(res && res.syncFunction);
+            if (!isRunningNow) {
+                setRunning(false);
+                setSyncState(prev => ({ ...prev, phase: 'completed', message: prev.message || '同步任务已结束' }));
+            }
+        }, 2000);
+        return () => clearInterval(timer);
+    }, [running]);
+
+    const toggleSlave = (id, checked) => {
+        setSlaveIds(prev => checked ? [...new Set([...prev, id])] : prev.filter(x => x !== id));
+    };
+
+    const initSlaveProgress = (ids) => {
+        const map = {};
+        ids.forEach(id => {
+            map[id] = { status: 'pending', message: '等待执行', updatedAt: Date.now() };
+        });
+        setSlaveProgress(map);
+    };
+
+    const handleStopSync = async () => {
+        const res = await API.terminateTask('syncFunction');
+        if (res && res.success) {
+            setRunning(false);
+            setSyncState({ phase: 'completed', success: false, message: '同步任务已手动停止' });
+            toast('同步任务已停止', 'warning');
+        } else {
+            toast((res && res.message) || '停止失败', 'error');
+        }
+    };
+
+    const handleStartSync = async (retryFailedOnly = false) => {
+        if (!masterId) { toast('请先选择主环境', 'warning'); return; }
+        let finalSlaveIds = slaveIds.filter(id => id !== masterId);
+        if (retryFailedOnly) {
+            finalSlaveIds = finalSlaveIds.filter(id => (slaveProgress[id] && slaveProgress[id].status === 'failed'));
+        }
+        if (finalSlaveIds.length === 0) { toast(retryFailedOnly ? '没有可重试的失败环境' : '请至少选择一个从环境', 'warning'); return; }
+
+        setRunning(true);
+        setSyncState({ phase: 'running', success: null, message: '同步任务启动中...' });
+        setLastTaskLogs([]);
+        initSlaveProgress(finalSlaveIds);
+        setSlaveProgress(prev => {
+            const next = { ...prev };
+            finalSlaveIds.forEach(id => {
+                next[id] = { status: 'running', message: '任务已下发', updatedAt: Date.now() };
+            });
+            return next;
+        });
+
+        const payload = { envIds: [masterId, ...finalSlaveIds], masterId, slaveIds: finalSlaveIds, mode: 'env' };
+        const res = await API.execTask('syncFunction', payload);
+        if (res && res.success) {
+            toast('同步任务已启动', 'success');
+            return;
+        }
+        setRunning(false);
+        setSyncState({ phase: 'completed', success: false, message: (res && res.message) || '同步任务启动失败' });
+        setSlaveProgress(prev => {
+            const next = { ...prev };
+            Object.keys(next).forEach((id) => {
+                if (next[id].status === 'running' || next[id].status === 'pending') {
+                    next[id] = { ...next[id], status: 'failed', message: (res && res.message) || '启动失败', updatedAt: Date.now() };
+                }
+            });
+            return next;
+        });
+        toast((res && res.message) || '同步任务启动失败', 'error');
+    };
+
+    const statusBadge = (status) => {
+        if (status === 'success') return React.createElement('span', { className: 'badge bg-success' }, '成功');
+        if (status === 'failed') return React.createElement('span', { className: 'badge bg-danger' }, '失败');
+        if (status === 'running') return React.createElement('span', { className: 'badge bg-primary' }, '进行中');
+        return React.createElement('span', { className: 'badge bg-secondary' }, '待执行');
+    };
+
     return React.createElement('div', null,
         React.createElement('h4', { style: { marginBottom: '20px' } }, '同步功能'),
         React.createElement('div', { className: 'web-card' },
-            React.createElement('div', { className: 'card-header' }, '同步分组管理'),
+            React.createElement('div', { className: 'card-header' },
+                React.createElement('span', null, '同步分组管理'),
+                React.createElement('span', { className: 'badge bg-primary' }, envs.length + ' 个环境')
+            ),
             React.createElement('div', { className: 'card-body' },
-                React.createElement('div', { className: 'text-center text-muted py-5' },
-                    React.createElement('i', { className: 'bi bi-arrow-repeat', style: { fontSize: '2rem' } }),
-                    React.createElement('p', { className: 'mt-2' }, '同步功能开发中...')
-                )
+                envs.length === 0
+                    ? React.createElement('div', { className: 'text-center text-muted py-4' }, '暂无指纹环境，请先在浏览器管理生成指纹')
+                    : React.createElement(React.Fragment, null,
+                        React.createElement('div', { className: 'mb-3' },
+                            React.createElement('label', { className: 'form-label' }, '主环境'),
+                            React.createElement('select', { className: 'form-select', value: masterId, onChange: e => setMasterId(e.target.value) },
+                                envs.map(fp => {
+                                    const id = fp.id || fp._id;
+                                    return React.createElement('option', { key: id, value: id }, (fp.name || id) + ' (' + id.slice(0, 8) + ')');
+                                })
+                            )
+                        ),
+                        React.createElement('div', { className: 'mb-3' },
+                            React.createElement('label', { className: 'form-label' }, '从环境（可多选）'),
+                            React.createElement('div', { style: { maxHeight: '260px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '8px', padding: '10px' } },
+                                envs.map(fp => {
+                                    const id = fp.id || fp._id;
+                                    const disabled = id === masterId;
+                                    return React.createElement('div', { key: id, className: 'form-check mb-1' },
+                                        React.createElement('input', {
+                                            className: 'form-check-input', type: 'checkbox', id: 'sync-slave-' + id,
+                                            checked: slaveIds.includes(id), disabled,
+                                            onChange: e => toggleSlave(id, e.target.checked)
+                                        }),
+                                        React.createElement('label', { className: 'form-check-label', htmlFor: 'sync-slave-' + id },
+                                            (fp.name || id) + (disabled ? '（主环境）' : '')
+                                        )
+                                    );
+                                })
+                            )
+                        ),
+                        React.createElement('div', { className: 'd-flex gap-2 flex-wrap mb-3' },
+                            React.createElement('button', { className: 'btn btn-primary', onClick: () => handleStartSync(false), disabled: running },
+                                running ? '同步中...' : '启动同步'
+                            ),
+                            React.createElement('button', { className: 'btn btn-warning', onClick: () => handleStartSync(true), disabled: running || Object.keys(slaveProgress).filter(id => slaveProgress[id].status === 'failed').length === 0 }, '重试失败项'),
+                            React.createElement('button', { className: 'btn btn-danger', onClick: handleStopSync, disabled: !running }, '停止同步'),
+                            React.createElement('button', { className: 'btn btn-outline-secondary', onClick: fetchData }, '刷新环境列表'),
+                            React.createElement('button', { className: 'btn btn-outline-secondary', onClick: async () => {
+                                const r = await API.getTaskStatus(['syncFunction']);
+                                toast('syncFunction 当前状态: ' + ((r && r.syncFunction) ? '运行中' : '空闲'), 'info');
+                            } }, '刷新状态')
+                        ),
+                        React.createElement('div', { className: 'alert ' + (syncState.success === false ? 'alert-danger' : syncState.success === true ? 'alert-success' : 'alert-secondary') },
+                            React.createElement('strong', null, '任务状态：'),
+                            syncState.phase === 'running' ? '运行中' : syncState.phase === 'completed' ? (syncState.success ? '已完成' : '失败') : '未启动',
+                            syncState.message ? (' ｜ ' + syncState.message) : ''
+                        ),
+                        React.createElement('div', { style: { overflowX: 'auto' } },
+                            React.createElement('table', { className: 'web-table' },
+                                React.createElement('thead', null, React.createElement('tr', null,
+                                    React.createElement('th', null, '环境'),
+                                    React.createElement('th', null, '状态'),
+                                    React.createElement('th', null, '最后消息'),
+                                    React.createElement('th', null, '更新时间')
+                                )),
+                                React.createElement('tbody', null,
+                                    Object.keys(slaveProgress).length === 0
+                                        ? React.createElement('tr', null, React.createElement('td', { colSpan: 4, className: 'text-center text-muted' }, '暂无同步明细（启动任务后显示）'))
+                                        : Object.entries(slaveProgress).map(([id, st]) => {
+                                            const fp = envs.find(x => (x.id || x._id) === id);
+                                            return React.createElement('tr', { key: id },
+                                                React.createElement('td', null, (fp && fp.name) ? fp.name : id.slice(0, 8)),
+                                                React.createElement('td', null, statusBadge(st.status)),
+                                                React.createElement('td', null, st.message || '-'),
+                                                React.createElement('td', null, st.updatedAt ? new Date(st.updatedAt).toLocaleTimeString() : '-')
+                                            );
+                                        })
+                                )
+                            )
+                        ),
+                        React.createElement('div', { className: 'mt-3' },
+                            React.createElement('div', { className: 'text-muted mb-1' }, '最近日志（20条）'),
+                            React.createElement('div', { style: { maxHeight: '180px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '8px', padding: '8px', background: '#fafafa' } },
+                                lastTaskLogs.length === 0
+                                    ? React.createElement('div', { className: 'text-muted' }, '暂无日志')
+                                    : lastTaskLogs.map((l, i) => React.createElement('div', { key: i, style: { fontSize: '12px', marginBottom: '4px' } }, '[' + l.time + '] ' + l.message))
+                            )
+                        )
+                    )
             )
         )
     );
@@ -438,15 +711,65 @@ function SyncFunctionPage() {
 // AIAgents Page
 // ============================================================
 function AIAgentsPage() {
+    const [agents, setAgents] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const toast = useToast();
+
+    const fetchAgents = useCallback(async () => {
+        setLoading(true);
+        const res = await API.getAgentTasks();
+        if (Array.isArray(res)) {
+            setAgents(res);
+        } else if (res && Array.isArray(res.data)) {
+            setAgents(res.data);
+        } else {
+            setAgents([]);
+        }
+        setLoading(false);
+    }, []);
+
+    useEffect(() => { fetchAgents(); }, [fetchAgents]);
+
+    const openWorkspace = async (agent) => {
+        const taskName = agent.taskName || agent.name;
+        if (!taskName) { toast('任务名称缺失，无法打开', 'error'); return; }
+        const res = await API.execTask(taskName, {});
+        if (res && res.success) toast('AI 任务已启动：' + taskName, 'success');
+        else toast((res && res.message) || ('启动失败: ' + taskName), 'error');
+    };
+
+    if (loading) return React.createElement('div', { className: 'loading-overlay' }, React.createElement('div', { className: 'loading-spinner' }));
+
     return React.createElement('div', null,
         React.createElement('h4', { style: { marginBottom: '20px' } }, 'AI Agents'),
         React.createElement('div', { className: 'web-card' },
-            React.createElement('div', { className: 'card-header' }, 'AI 代理管理'),
+            React.createElement('div', { className: 'card-header' },
+                React.createElement('span', null, 'AI 代理管理'),
+                React.createElement('span', { className: 'badge bg-primary' }, agents.length + ' 个任务')
+            ),
             React.createElement('div', { className: 'card-body' },
-                React.createElement('div', { className: 'text-center text-muted py-5' },
-                    React.createElement('i', { className: 'bi bi-robot', style: { fontSize: '2rem' } }),
-                    React.createElement('p', { className: 'mt-2' }, 'AI Agents 功能开发中...')
-                )
+                agents.length === 0
+                    ? React.createElement('div', { className: 'text-center text-muted py-4' }, '暂无 AI 任务')
+                    : React.createElement('div', { style: { overflowX: 'auto' } },
+                        React.createElement('table', { className: 'web-table' },
+                            React.createElement('thead', null, React.createElement('tr', null,
+                                React.createElement('th', null, '名称'),
+                                React.createElement('th', null, '类型'),
+                                React.createElement('th', null, '操作')
+                            )),
+                            React.createElement('tbody', null,
+                                agents.map((a, i) => React.createElement('tr', { key: a.taskName || a.name || i },
+                                    React.createElement('td', null, a.taskName || a.name || '-'),
+                                    React.createElement('td', null, React.createElement('span', { className: 'badge bg-secondary' }, a.taskType || 'agent')),
+                                    React.createElement('td', null,
+                                        React.createElement('button', { className: 'btn btn-success btn-sm', onClick: () => openWorkspace(a) },
+                                            React.createElement('i', { className: 'bi bi-play-fill me-1' }), '运行'
+                                        )
+                                    )
+                                ))
+                            )
+                        )
+                    )
             )
         )
     );
