@@ -436,13 +436,22 @@ class Config {
      */
     async runInstaller() {
         if (process.platform === 'linux') {
-            const fpPath = this.getFingerprintChromiumPath();
-            if (fpPath.success) {
-                this.setChromePath(fpPath.path);
-                console.log(`[runInstaller] Linux: using bundled fingerprint-chromium at ${fpPath.path}`);
-                return { success: true, message: 'Linux: using bundled fingerprint-chromium', chromePath: fpPath.path };
+            // Try multiple possible paths for bundled chromium
+            const possiblePaths = [
+                this._paths.fingerprintChromiumPath,
+                this.fingerprintChromiumPath,
+                path.join(__dirname, 'assets/fingerprint-chromium/ungoogled-chromium-144.0.7559.132-1-x86_64_linux/chrome'),
+                path.join(__dirname, 'fingerprint-chromium/ungoogled-chromium-144.0.7559.132-1-x86_64_linux/chrome'),
+            ].filter(Boolean);
+            for (const p of possiblePaths) {
+                if (fs.existsSync(p)) {
+                    this.setChromePath(p);
+                    this.setFingerprintChromiumPath(p);
+                    console.log(`[runInstaller] Linux: using bundled fingerprint-chromium at ${p}`);
+                    return { success: true, message: 'Linux: using bundled fingerprint-chromium', chromePath: p };
+                }
             }
-            return { success: false, message: `Bundled fingerprint-chromium not found at ${this.fingerprintChromiumPath}` };
+            return { success: false, message: 'Bundled fingerprint-chromium not found. Searched: ' + possiblePaths.join(', ') };
         }
 
         const { execFile } = require('child_process');

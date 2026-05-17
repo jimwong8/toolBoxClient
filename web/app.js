@@ -247,8 +247,15 @@ function ChromeManagerPage() {
     const handleInstall = async () => {
         setInstallStatus('installing');
         const res = await API.runInstaller();
-        if (res.success) { toast('浏览器安装成功', 'success'); setInstallStatus('success'); }
-        else { toast(res.message || '安装失败', 'error'); setInstallStatus('error'); }
+        if (res.success) {
+            toast('浏览器安装成功', 'success');
+            setInstallStatus('success');
+            if (res.chromePath) setChromePath(res.chromePath);
+            else fetchData();
+        } else {
+            toast(res.message || '安装失败', 'error');
+            setInstallStatus('error');
+        }
     };
 
     if (loading) return React.createElement('div', { className: 'loading-overlay' }, React.createElement('div', { className: 'loading-spinner' }));
