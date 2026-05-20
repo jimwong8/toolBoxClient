@@ -84,7 +84,7 @@ After onboarding, click the **Dashboard** tab to access the job search control p
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │  Core Services                                         │  │
 │  │  Express Backend (:30001) ─ Task Lifecycle · WS Hub    │  │
-│  │  React Frontend  (:3000)  ─ Agent Workspace · Dashboard│  │
+│  │  React Frontend  (:3001)  ─ Agent Workspace · Dashboard│  │
 │  └────────────────────────────────────────────────────────┘  │
 │                                                              │
 │  ┌──────────────────┐ ┌──────────────────┐ ┌──────────────┐ │
@@ -230,11 +230,18 @@ This system is defined as portable markdown workflows, reusable across projects.
 git clone https://github.com/web3ToolBoxDev/toolBoxClient.git
 cd toolBoxClient
 yarn install                # install dependencies
-yarn build                  # build React frontend
+yarn build                  # build React frontend (port 3001)
 yarn dist                   # package Electron distributable (output in dist/)
 ```
 
-Development mode: `yarn dev` starts Electron + backend. `yarn start` for React hot reload.
+Development mode: `yarn dev` starts Electron + backend. `yarn start` for React hot reload (port 301).
+
+**Web mode** (browser-only, no Electron):
+```bash
+yarn web                        # start Web Dashboard (port 8081)
+# → http://localhost:8081
+```
+Web mode provides a browser-based Dashboard + Browser Manager + Wallet Manager + Sync Function UI. Some features requiring native dialogs (file picker, install browser) are not available in Web mode.
 
 ## Project Status
 
