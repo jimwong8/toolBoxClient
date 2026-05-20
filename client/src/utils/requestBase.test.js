@@ -23,11 +23,11 @@ describe('RequestBase', () => {
         jest.clearAllMocks();
         // Re-setup create to return our mockAxiosInstance after clearAllMocks
         axios.create.mockReturnValue(mockAxiosInstance);
-        rb = new RequestBase('http://localhost:3000');
+        rb = new RequestBase('http://localhost:3001');
     });
 
     it('creates axios instance with baseURL', () => {
-        expect(axios.create).toHaveBeenCalledWith({ baseURL: 'http://localhost:3000' });
+        expect(axios.create).toHaveBeenCalledWith({ baseURL: 'http://localhost:3001' });
     });
 
     it('registers request and response interceptors', () => {

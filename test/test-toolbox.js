@@ -16,7 +16,7 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 
-const API_BASE = process.env.API_BASE || 'http://localhost:30001/api';
+const API_BASE = process.env.API_BASE || 'http://localhost:30011/api';
 const SKIP_INSTALL = process.argv.includes('--skip-install');
 const SKIP_BROWSER = process.argv.includes('--skip-browser');
 
@@ -453,7 +453,7 @@ async function main() {
         try {
             await apiGet('/getSavePath');
         } catch (e) {
-            console.error('\n❌ 无法连接到工具箱后端 API (localhost:3000)');
+            console.error('\n❌ 无法连接到工具箱后端 API (localhost:3001)');
             console.error('   请先启动工具箱应用，然后重新运行此测试');
             process.exit(1);
         }

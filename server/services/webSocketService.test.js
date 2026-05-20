@@ -37,7 +37,7 @@ describe('WebSocketService agent protocol regression', () => {
 
         const req = {
             headers: {
-                origin: 'http://localhost:3000',
+                origin: 'http://localhost:3001',
                 'user-agent': 'Mozilla/5.0',
                 host: 'localhost:30001',
                 'sec-websocket-key': 'test-key'

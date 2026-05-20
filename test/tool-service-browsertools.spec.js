@@ -35,11 +35,11 @@ test.describe.serial('browser tools via /tools/execute', () => {
     test('page_goto navigates to a URL', async () => {
         const res = await execTool('page_goto', {
             browserId,
-            url: 'http://localhost:3000'
+            url: 'http://localhost:3001'
         });
         expect(res.success).toBe(true);
         expect(res.result.title).toBeTruthy();
-        expect(res.result.url).toContain('localhost:3000');
+        expect(res.result.url).toContain('localhost:3001');
     });
 
     test('page_extract reads page content', async () => {
@@ -78,7 +78,7 @@ test.describe.serial('browser tools via /tools/execute', () => {
     test('page_goto fails on closed browser', async () => {
         const res = await execTool('page_goto', {
             browserId,
-            url: 'http://localhost:3000'
+            url: 'http://localhost:3001'
         });
         expect(res.success).toBe(false);
         expect(res.error).toContain('not found');

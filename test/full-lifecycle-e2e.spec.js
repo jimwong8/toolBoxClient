@@ -22,7 +22,7 @@ const { spawn } = require('child_process');
  * GATE checkpoints: If a GATE fails, all subsequent tests are SKIPPED.
  *
  * Prerequisites:
- *   - React dev server running on http://localhost:3000 (npm start)
+ *   - React dev server running on http://localhost:3001 (npm start)
  *   - Backend started via: IS_BUILD=false node server/server.js
  *   - env1 fingerprint browser profile exists in DB
  *
@@ -226,7 +226,7 @@ async function startFrontend() {
     await pollUntil(
         async () => {
             try {
-                const r = await fetch('http://localhost:3000');
+                const r = await fetch('http://localhost:3001');
                 return { ready: r.ok };
             } catch { return { ready: false }; }
         },
@@ -234,7 +234,7 @@ async function startFrontend() {
         30_000,
         2_000
     );
-    console.log('[e2e] Frontend ready on :3000');
+    console.log('[e2e] Frontend ready on :3001');
 }
 
 async function startBackend() {
@@ -310,9 +310,9 @@ test.describe.serial('Full Lifecycle E2E -- Happy Path', () => {
 
         // Frontend
         try {
-            const r = await fetch('http://localhost:3000');
+            const r = await fetch('http://localhost:3001');
             if (r.ok) {
-                console.log('[e2e] Frontend already running on :3000');
+                console.log('[e2e] Frontend already running on :3001');
             } else {
                 await startFrontend();
             }

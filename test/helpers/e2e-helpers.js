@@ -11,8 +11,8 @@ const path = require('path');
 
 // ─── Constants ───
 
-const BACKEND_URL = process.env.E2E_BACKEND_URL || 'http://localhost:30001';
-const DASHBOARD_URL = process.env.E2E_DASHBOARD_URL || 'http://localhost:30003';
+const BACKEND_URL = process.env.E2E_BACKEND_URL || 'http://localhost:30011';
+const DASHBOARD_URL = process.env.E2E_DASHBOARD_URL || 'http://localhost:30013';
 const POLL_INTERVAL = 5_000;
 
 // ─── Health / readiness checks ───

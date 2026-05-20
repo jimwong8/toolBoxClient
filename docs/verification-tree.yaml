@@ -37,7 +37,7 @@ nodes:
         gate: blocking
         evidence: [api_response]
         failure_category: environment
-        pass_criteria: "Backend :30001 and frontend :3000 respond 200"
+        pass_criteria: "Backend :30001 and frontend :3001 respond 200"
         test_mapping:
           file: test/full-lifecycle-e2e.spec.js
           test_name: "Phase 0.1: Start frontend + backend"

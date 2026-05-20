@@ -18,7 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const BASE = BACKEND_URL || 'http://localhost:30001';
+const BASE = BACKEND_URL || 'http://localhost:30011';
 
 /**
  * Seed both sessions.json (for disk API) and state.json (for StateService).

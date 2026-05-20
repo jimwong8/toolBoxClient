@@ -15,8 +15,8 @@ const path = require('path');
  *   7. Verify dashboard artifact appears
  *
  * Prerequisites:
- *   - React dev server running on http://localhost:3000 (npm start)
- *   - Express backend running on http://localhost:30001 (npm run dev)
+ *   - React dev server running on http://localhost:3001 (npm start)
+ *   - Express backend running on http://localhost:30011 (npm run dev)
  *
  * Environment variables:
  *   E2E_PROVIDER      - 'claude-code' (default) | 'codex-cli' | 'api-key'
@@ -59,7 +59,7 @@ const SALARY = process.env.E2E_SALARY || '120';
 
 async function isBackendReady() {
     try {
-        const resp = await fetch('http://localhost:30001/api/getAllTasks?default=true', {
+        const resp = await fetch('http://localhost:30011/api/getAllTasks?default=true', {
             signal: AbortSignal.timeout(3000)
         });
         return resp.status === 200;

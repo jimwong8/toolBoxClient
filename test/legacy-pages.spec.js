@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-const BASE_API = 'http://localhost:30001/api';
+const BASE_API = 'http://localhost:30011/api';
 
 /**
  * Helper: auto-dismiss window.alert / window.confirm dialogs

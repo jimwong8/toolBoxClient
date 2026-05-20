@@ -175,7 +175,7 @@
     "dev": "cross-env IS_BUILD=false electron .",
     "pre-dist": "node scripts/pre-dist.js",
     "dist": "npm run pre-dist && electron-builder",
-    "start": "react-app-rewired start",
+    "start": "cross-env PORT=3001 react-app-rewired start",
     "build": "react-app-rewired build --port 30001",
     "test": "react-app-rewired test",
     "test:client": "react-app-rewired test --watchAll=false --runInBand client/src/pages/taskManage/index.test.js client/src/utils/api.test.js client/src/utils/webSocket.test.js client/src/components/taskOffcanvas/index.test.js client/src/components/taskOffcanvas/AITaskPanel.test.js client/src/pages/agentWorkspace/index.test.js",

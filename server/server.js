@@ -32,7 +32,7 @@ expressWs(app);
 app.use(express.json({ limit: '10mb' }));
 
 // CORS: 仅允许 localhost 和 file:// 来源
-const ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:30001', 'http://127.0.0.1:3000', 'http://127.0.0.1:30001', 'file://'];
+const ALLOWED_ORIGINS = ['http://localhost:3001', 'http://localhost:30001', 'http://127.0.0.1:3001', 'http://127.0.0.1:30001', 'file://'];
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || ALLOWED_ORIGINS.includes(origin)) {

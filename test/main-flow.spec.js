@@ -30,8 +30,8 @@ const {
  *   Phase 8: Results verification
  *
  * Prerequisites:
- *   - React dev server on http://localhost:3000  (npm start)
- *   - Express backend on http://localhost:30001  (npm run dev)
+ *   - React dev server on http://localhost:3001  (npm start)
+ *   - Express backend on http://localhost:30011  (npm run dev)
  *   - env1 fingerprint browser profile with LinkedIn/Indeed cookies
  *
  * Environment variables:
@@ -91,7 +91,7 @@ test.describe.serial('Main Flow E2E — Happy Path', () => {
     test.skip(!gates.backendUp, 'Skipped — GATE-0 failed');
     console.log('[e2e] Phase 0b -- React UI check...');
     try {
-      const resp = await fetch('http://localhost:3000', { signal: AbortSignal.timeout(10_000) });
+      const resp = await fetch('http://localhost:3001', { signal: AbortSignal.timeout(10_000) });
       expect(resp.ok, 'React UI must be reachable on :3000').toBe(true);
     } catch (err) {
       throw new Error(`React UI not reachable: ${err.message}`);

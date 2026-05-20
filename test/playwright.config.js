@@ -8,7 +8,7 @@ module.exports = defineConfig({
     timeout: 120 * 1000, // 2 min per expect (waiting for AI response)
   },
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://localhost:3001',
     headless: false,     // show browser for debugging
     viewport: { width: 1440, height: 900 },
     screenshot: 'only-on-failure',

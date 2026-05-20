@@ -26,7 +26,7 @@ test.describe('browserPool E2E', () => {
         const launchResp = await fetch(`${TOOL_SERVICE_URL}/test/browser-launch`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: 'http://localhost:3000', headless: true })
+            body: JSON.stringify({ url: 'http://localhost:3001', headless: true })
         });
         const launchData = await launchResp.json();
         expect(launchData.success).toBe(true);
@@ -69,7 +69,7 @@ test.describe('browserPool E2E', () => {
         const launchResp = await fetch(`${TOOL_SERVICE_URL}/test/browser-launch`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: 'http://localhost:3000', headless: true })
+            body: JSON.stringify({ url: 'http://localhost:3001', headless: true })
         });
         const { browserId } = await launchResp.json();
 

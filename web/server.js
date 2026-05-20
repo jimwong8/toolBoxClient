@@ -4,7 +4,7 @@ const fs = require('fs');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
-const PORT = process.env.WEB_PORT || 8080;
+const PORT = process.env.WEB_PORT || 8081;
 
 // Proxy API requests to backend
 const http = require('http');

@@ -126,7 +126,7 @@ function createWindow() {
   const buildPath = path.join(__dirname, './client/build/index.html');
   const startURL = fs.existsSync(buildPath)
     ? `file://${buildPath}`
-    : 'http://localhost:3000';
+    : 'http://localhost:3001';
   console.log('[Electron] Loading URL:', startURL);
   mainWindow.loadURL(startURL);
   mainWindow.show();
