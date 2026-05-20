@@ -30,7 +30,20 @@ const port = 30001;
 expressWs(app);
 
 app.use(express.json({ limit: '10mb' }));
-app.use(cors({ origin: true, credentials: true }));
+
+// CORS: 仅允许 localhost 和 file:// 来源
+const ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:30001', 'http://127.0.0.1:3000', 'http://127.0.0.1:30001', 'file://'];
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy: origin not allowed'));
+    }
+  },
+  credentials: true
+}));
+
 app.use('/api', router);
 const stateRoutes = require('./routes/stateRoutes');
 app.use('/api/state', stateRoutes);
@@ -65,6 +78,9 @@ app.use('/api/dashboard', (req, res) => {
 const memoryService = require('./services/memoryService');
 const toolServiceMgr = require('./services/toolServiceManager');
 
+// Initialize WebSocket before listen to avoid route registration conflicts
+webService.initialize(app);
+
 app.listen(port, '127.0.0.1', async () => {
   console.log(`服务器已启动，监听端口 ${port}`);
 
@@ -75,7 +91,6 @@ app.listen(port, '127.0.0.1', async () => {
   } catch (e) {
     // Not running inside Electron utilityProcess — ignore
   }
-  webService.initialize(app);
 
   memoryService.startDbService();
   toolServiceMgr.startToolService();
@@ -105,6 +120,15 @@ process.on('SIGTERM', () => {
   // Just stop child services gracefully
   try { memoryService.stopDbService(); } catch(e) {}
   try { toolServiceMgr.stopToolService(); } catch(e) {}
+});
+
+// Global error handler — must be last middleware
+app.use((err, req, res, next) => {
+  console.error('[errorHandler]', err.message || err);
+  if (err.message && err.message.includes('CORS')) {
+    return res.status(403).send({ success: false, message: 'CORS error: origin not allowed' });
+  }
+  res.status(500).send({ success: false, message: err.message || 'Internal server error' });
 });
 
 module.exports = app

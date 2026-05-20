@@ -49,10 +49,11 @@ const usePathStore = create((set) => ({
     }
   },
   fetchPaths: async () => {
+    const { fetchSavePath, fetchChromePath, fetchWalletScriptDirectory } = usePathStore.getState();
     await Promise.all([
-      usePathStore.getState().fetchSavePath(),
-      usePathStore.getState().fetchChromePath(),
-      usePathStore.getState().fetchWalletScriptDirectory(),
+      fetchSavePath(),
+      fetchChromePath(),
+      fetchWalletScriptDirectory(),
     ]);
   },  
 
