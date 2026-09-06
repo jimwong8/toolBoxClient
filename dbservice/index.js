@@ -11,7 +11,8 @@ const PORT = parseInt(process.env.DBSERVICE_PORT || '30002', 10);
 const SAVE_PATH = process.env.DBSERVICE_SAVE_PATH || '';
 
 // Patch mem0 factories to support our custom embedder/LLM
-const oss = require('mem0ai/oss');
+// Use local shim because mem0ai v1.0.39 removed the old oss API
+const oss = require('./mem0ai-shim');
 const { Memory, EmbedderFactory, LLMFactory } = oss;
 
 // Store custom instances to inject via factory
@@ -42,8 +43,18 @@ async function getMemory(llmConfig = {}) {
 
     initPromise = (async () => {
         try {
-            _customEmbedder = new TransformersEmbedder();
-            _customLLM = new BridgeLLM(llmConfig);
+            // Try to init embedder/LLM, but don't fail the whole service if unavailable
+            try {
+                _customEmbedder = new TransformersEmbedder();
+                console.log('[dbservice] TransformersEmbedder initialized');
+            } catch (embedErr) {
+                console.warn('[dbservice] TransformersEmbedder unavailable (running without embeddings):', embedErr.message);
+            }
+            try {
+                _customLLM = new BridgeLLM(llmConfig);
+            } catch (llmErr) {
+                console.warn('[dbservice] BridgeLLM unavailable:', llmErr.message);
+            }
 
             const historyDbPath = SAVE_PATH
                 ? path.join(SAVE_PATH, 'db', 'mem0_history.db')
@@ -177,6 +188,61 @@ async function handleClear(req, res) {
         sendJSON(res, 200, { success: true });
     } catch (err) {
         console.error('[dbservice] clear error:', err.message);
+        sendJSON(res, 500, { success: false, error: err.message });
+    }
+}
+
+// ─── mem0ai-compat handlers ────────────────────────────────
+
+async function handleGetAll(req, res) {
+    const body = await readBody(req);
+    const { userId, limit } = body;
+    try {
+        const memory = await getMemory({});
+        const results = await memory.getAll({ userId, limit });
+        sendJSON(res, 200, { success: true, results: results || [] });
+    } catch (err) {
+        console.error('[dbservice] getAll error:', err.message);
+        sendJSON(res, 500, { success: false, error: err.message });
+    }
+}
+
+async function handleDelete(req, res) {
+    const body = await readBody(req);
+    const { id } = body;
+    if (!id) return sendJSON(res, 400, { success: false, error: 'id is required' });
+    try {
+        const memory = await getMemory({});
+        const result = await memory.delete({ id });
+        sendJSON(res, 200, result);
+    } catch (err) {
+        console.error('[dbservice] delete error:', err.message);
+        sendJSON(res, 500, { success: false, error: err.message });
+    }
+}
+
+async function handleDeleteAll(req, res) {
+    const body = await readBody(req);
+    const { userId } = body;
+    try {
+        const memory = await getMemory({});
+        const result = await memory.deleteAll({ userId });
+        sendJSON(res, 200, result);
+    } catch (err) {
+        console.error('[dbservice] deleteAll error:', err.message);
+        sendJSON(res, 500, { success: false, error: err.message });
+    }
+}
+
+async function handleHistory(req, res) {
+    const body = await readBody(req);
+    const { userId, limit } = body;
+    try {
+        const memory = await getMemory({});
+        const results = await memory.history({ userId, limit });
+        sendJSON(res, 200, { success: true, results: results || [] });
+    } catch (err) {
+        console.error('[dbservice] history error:', err.message);
         sendJSON(res, 500, { success: false, error: err.message });
     }
 }
@@ -472,6 +538,22 @@ const server = http.createServer(async (req, res) => {
         }
         if (url === '/memory/clear' && (req.method === 'POST' || req.method === 'DELETE')) {
             return await handleClear(req, res);
+        }
+        // mem0ai-compat: getAll
+        if (url === '/memory/getAll' && req.method === 'POST') {
+            return await handleGetAll(req, res);
+        }
+        // mem0ai-compat: delete
+        if (url === '/memory/delete' && (req.method === 'POST' || req.method === 'DELETE')) {
+            return await handleDelete(req, res);
+        }
+        // mem0ai-compat: deleteAll
+        if (url === '/memory/deleteAll' && (req.method === 'POST' || req.method === 'DELETE')) {
+            return await handleDeleteAll(req, res);
+        }
+        // mem0ai-compat: history
+        if (url === '/memory/history' && req.method === 'POST') {
+            return await handleHistory(req, res);
         }
         // knowledge store routes
         if (url === '/knowledge/upsert' && req.method === 'POST') {
